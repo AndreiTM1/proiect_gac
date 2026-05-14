@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from PIL import Image, ImageTk, ImageOps, ImageDraw
+from PIL import Image, ImageTk, ImageOps, ImageDraw, ImageFilter
 import cv2
 import numpy as np
 
@@ -56,6 +56,7 @@ class EditorFotoApp:
             "Negativare": self.logica_negativ,
             "Binarizare": lambda img: self.logica_binarizare(img, int(self.slider_prag.get())),
             "Chromatic Abr.": lambda img: self.logica_aberration(img, int(self.slider_aberration.get())),
+            "Blur": lambda img: img.filter(ImageFilter.GaussianBlur(radius=self.slider_blur.get())),
             "Canny Edge": self.logica_canny,
             "Sare si Piper": self.logica_sare_piper
         }
@@ -109,10 +110,15 @@ class EditorFotoApp:
         self.slider_aberration.set(10)
         self.slider_aberration.pack(fill=tk.X, pady=(0, 10))
 
+        ttk.Label(left_frame, text="Blur (Radius)", font=("Helvetica", 9)).pack()
+        self.slider_blur = ttk.Scale(left_frame, from_=0, to=10, orient=tk.HORIZONTAL, command=self.on_slider_change)
+        self.slider_blur.set(2)
+        self.slider_blur.pack(fill=tk.X, pady=(0, 10))
+
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         # BUTOANE FILTRE
-        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Canny Edge", "Sare si Piper"]
+        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper"]
         
         for nume in lista_filtre:
             btn = ttk.Button(left_frame, text=nume, state=tk.DISABLED, 
