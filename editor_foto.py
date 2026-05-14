@@ -7,18 +7,20 @@ import numpy as np
 class EditorFotoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Editor Foto (Neactivat - 25 Zile Ramase)")
-        self.root.geometry("1000x750")
+        self.root.title("Editor Foto Profesional")
+        self.root.geometry("1050x800")
         
         self.style = ttk.Style()
         if "clam" in self.style.theme_names():
             self.style.theme_use("clam")
 
+        # ARHITECTURA NOUA DE IMAGINI
         self.imagine_originala = None
-        self.imagine_curenta = None
+        self.imagine_baza = None     # Imaginea care contine editarile permanente (pensula/selectie)
+        self.imagine_curenta = None  # Imaginea finala afisata (Baza + Filtre Globale)
         self.tk_imagine = None
         
-        # Variabile pentru desenare/selectie
+        # Variabile desenare
         self.rect_id = None
         self.start_x = None
         self.start_y = None
@@ -26,12 +28,16 @@ class EditorFotoApp:
         self.afisaj_w = 1
         self.afisaj_h = 1
 
-        # Variabile pentru Brush Tool
-        self.filtru_activ_brush = None
+        # Variabile Pensula si Globale
+        self.nume_filtru_brush = None
         self.brush_cursor = None
         self.dim_brush = tk.IntVar(value=30)
-        self.imagine_filtrata_brush = None
+        self.imagine_baza_filtrata_brush = None
         self.is_brushing = False
+        
+        self.filtre_globale_active = [] # Lista filtrelor activate ca toggle
+        self.btn_filtre = {}            # Referinte la butoane pentru a le schimba textul
+        self.slider_timer = None        # Previne lag-ul cand se trage rapid de slider
         
         self.creare_interfata()
         self.setari_scurtaturi()
@@ -42,6 +48,17 @@ class EditorFotoApp:
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
         self.root.bind("<Control-KP_Add>", self.mareste_brush)
         self.root.bind("<Control-KP_Subtract>", self.micsoreaza_brush)
+
+    def get_functii_filtre(self):
+        # Dictionar care leaga numele filtrului de functia matematica
+        return {
+            "Alb-Negru": lambda img: img.convert("L"),
+            "Negativare": self.logica_negativ,
+            "Binarizare": lambda img: self.logica_binarizare(img, int(self.slider_prag.get())),
+            "Chromatic Abr.": lambda img: self.logica_aberration(img, int(self.slider_aberration.get())),
+            "Canny Edge": self.logica_canny,
+            "Sare si Piper": self.logica_sare_piper
+        }
 
     def creare_interfata(self):
         main_frame = ttk.Frame(self.root, padding="10")
@@ -57,66 +74,51 @@ class EditorFotoApp:
         self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta (Pan).", foreground="gray")
+        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
-        # Panou Stanga (Filtre si Optiuni)
-        left_frame = ttk.Frame(main_frame, width=220, padding="10", relief=tk.RIDGE)
+        # Panou Stanga
+        left_frame = ttk.Frame(main_frame, width=240, padding="10", relief=tk.RIDGE)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        # Moduri de lucru
         ttk.Label(left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
         self.mod_lucru = tk.StringVar(value="GLOBAL")
         
-        ttk.Radiobutton(left_frame, text="Pe toata poza", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(left_frame, text="Pe toata poza (Toggle)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
         ttk.Radiobutton(left_frame, text="Pe selectie", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
         ttk.Radiobutton(left_frame, text="Pensula (Brush)", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
         
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        # Optiuni Pensula
-        ttk.Label(left_frame, text="Marime Pensula (Ctrl +/-)").pack()
+        ttk.Label(left_frame, text="Marime Pensula (Ctrl +/-)", font=("Helvetica", 9)).pack()
         self.slider_brush = ttk.Scale(left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL)
-        self.slider_brush.pack(fill=tk.X, pady=5)
+        self.slider_brush.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
-        # Filtre Standard
-        ttk.Label(left_frame, text="Filtre Standard", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
+        # SECTIUNEA FILTRE
+        ttk.Label(left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
 
-        self.btn_grayscale = ttk.Button(left_frame, text="Alb-Negru", state=tk.DISABLED, 
-                                        command=lambda: self.proceseaza_actiune_filtru("Alb-Negru", lambda img: img.convert("L")))
-        self.btn_grayscale.pack(fill=tk.X, pady=3)
-
-        self.btn_negativ = ttk.Button(left_frame, text="Negativare", state=tk.DISABLED,
-                                      command=lambda: self.proceseaza_actiune_filtru("Negativare", self.logica_negativ))
-        self.btn_negativ.pack(fill=tk.X, pady=3)
-
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-
-        # Binarizare
-        ttk.Label(left_frame, text="Binarizare (Prag)", font=("Helvetica", 10)).pack()
-        self.slider_prag = ttk.Scale(left_frame, from_=0, to=255, orient=tk.HORIZONTAL)
+        ttk.Label(left_frame, text="Binarizare (Prag)", font=("Helvetica", 9)).pack()
+        self.slider_prag = ttk.Scale(left_frame, from_=0, to=255, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_prag.set(128)
-        self.slider_prag.pack(fill=tk.X, pady=5)
+        self.slider_prag.pack(fill=tk.X, pady=(0, 5))
 
-        self.btn_binarizare = ttk.Button(left_frame, text="Aplica Binarizare", state=tk.DISABLED,
-                                         command=lambda: self.proceseaza_actiune_filtru("Binarizare", 
-                                                         lambda img: self.logica_binarizare(img, int(self.slider_prag.get()))))
-        self.btn_binarizare.pack(fill=tk.X, pady=3)
+        ttk.Label(left_frame, text="Aberration (Intensitate)", font=("Helvetica", 9)).pack()
+        self.slider_aberration = ttk.Scale(left_frame, from_=0, to=30, orient=tk.HORIZONTAL, command=self.on_slider_change)
+        self.slider_aberration.set(10)
+        self.slider_aberration.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+
+        # BUTOANE FILTRE
+        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Canny Edge", "Sare si Piper"]
         
-        # Efecte Speciale
-        ttk.Label(left_frame, text="Efecte Speciale", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
-
-        self.btn_aberration = ttk.Button(left_frame, text="Chromatic Aberration", state=tk.DISABLED,
-                                         command=lambda: self.proceseaza_actiune_filtru("Chromatic Aberration", self.logica_aberration))
-        self.btn_aberration.pack(fill=tk.X, pady=3)
-
-        self.btn_canny = ttk.Button(left_frame, text="Detectie Contur (Canny)", state=tk.DISABLED,
-                                    command=lambda: self.proceseaza_actiune_filtru("Canny Edge", self.logica_canny))
-        self.btn_canny.pack(fill=tk.X, pady=3)
+        for nume in lista_filtre:
+            btn = ttk.Button(left_frame, text=nume, state=tk.DISABLED, 
+                             command=lambda n=nume: self.proceseaza_actiune_filtru(n))
+            btn.pack(fill=tk.X, pady=2)
+            self.btn_filtre[nume] = btn
 
         ttk.Frame(left_frame).pack(expand=True)
 
@@ -130,44 +132,46 @@ class EditorFotoApp:
         self.canvas_imagine = tk.Canvas(display_frame, bg="#2e2e2e", cursor="cross")
         self.canvas_imagine.pack(expand=True, fill=tk.BOTH)
 
-        # Evenimente mouse standard
         self.canvas_imagine.bind("<ButtonPress-1>", self.on_mouse_press)
         self.canvas_imagine.bind("<B1-Motion>", self.on_mouse_drag)
         self.canvas_imagine.bind("<ButtonRelease-1>", self.on_mouse_release)
         self.canvas_imagine.bind("<Motion>", self.on_mouse_motion)
         self.canvas_imagine.bind("<Leave>", self.on_mouse_leave)
-
-        # Evenimente mouse pentru rearanjare imagine (Pan)
-        # Mouse Mijloc (Scroll click) sau Click Dreapta in functie de OS si preferinte
+        
         self.canvas_imagine.bind("<ButtonPress-2>", self.start_pan)
         self.canvas_imagine.bind("<B2-Motion>", self.do_pan)
         self.canvas_imagine.bind("<ButtonPress-3>", self.start_pan)
         self.canvas_imagine.bind("<B3-Motion>", self.do_pan)
 
+    def on_slider_change(self, val):
+        # Declanseaza recalcularea cu un mic delay pentru a evita lag-ul pe Raspberry Pi
+        if self.slider_timer:
+            self.root.after_cancel(self.slider_timer)
+        self.slider_timer = self.root.after(100, self.executa_recalculare_slider)
+
+    def executa_recalculare_slider(self):
+        if self.mod_lucru.get() == "GLOBAL" and self.filtre_globale_active:
+            self.recalculeaza_imagine_globala()
+
     def mareste_brush(self, event=None):
-        val_noua = min(150, self.dim_brush.get() + 5)
-        self.dim_brush.set(val_noua)
-        if event and hasattr(event, 'x'):
-            self.actualizeaza_cerc_brush(event.x, event.y)
+        self.dim_brush.set(min(150, self.dim_brush.get() + 5))
+        if event and hasattr(event, 'x'): self.actualizeaza_cerc_brush(event.x, event.y)
 
     def micsoreaza_brush(self, event=None):
-        val_noua = max(5, self.dim_brush.get() - 5)
-        self.dim_brush.set(val_noua)
-        if event and hasattr(event, 'x'):
-            self.actualizeaza_cerc_brush(event.x, event.y)
+        self.dim_brush.set(max(5, self.dim_brush.get() - 5))
+        if event and hasattr(event, 'x'): self.actualizeaza_cerc_brush(event.x, event.y)
 
     def schimba_mod(self):
         self.sterge_selectia_vizuala()
-        self.filtru_activ_brush = None
-        self.imagine_filtrata_brush = None
+        self.nume_filtru_brush = None
+        self.imagine_baza_filtrata_brush = None
         self.is_brushing = False
         
         if self.brush_cursor:
             self.canvas_imagine.delete(self.brush_cursor)
             self.brush_cursor = None
 
-        if not self.imagine_curenta:
-            return
+        if not self.imagine_baza: return
 
         mod = self.mod_lucru.get()
         if mod == "BRUSH":
@@ -177,17 +181,15 @@ class EditorFotoApp:
             self.lbl_status.config(text="Mod Selectie: Traseaza un chenar pe poza.")
             self.dezactiveaza_filtre()
         else:
-            self.lbl_status.config(text="Mod Global: Filtrele se aplica pe toata poza.")
+            self.lbl_status.config(text="Mod Global: Activeaza sau dezactiveaza straturile de filtre.")
             self.activeaza_filtre()
 
     def dezactiveaza_filtre(self):
-        for btn in [self.btn_grayscale, self.btn_negativ, self.btn_binarizare, self.btn_aberration, self.btn_canny]:
-            btn.config(state=tk.DISABLED)
+        for btn in self.btn_filtre.values(): btn.config(state=tk.DISABLED)
 
     def activeaza_filtre(self):
-        if self.imagine_curenta:
-            for btn in [self.btn_grayscale, self.btn_negativ, self.btn_binarizare, self.btn_aberration, self.btn_canny]:
-                btn.config(state=tk.NORMAL)
+        if self.imagine_baza:
+            for btn in self.btn_filtre.values(): btn.config(state=tk.NORMAL)
 
     def deschide_imagine(self):
         cale_fisier = filedialog.askopenfilename(
@@ -197,11 +199,17 @@ class EditorFotoApp:
         if cale_fisier:
             try:
                 self.imagine_originala = Image.open(cale_fisier)
-                self.imagine_curenta = self.imagine_originala.copy()
-                self.actualizeaza_afisaj()
+                self.imagine_baza = self.imagine_originala.copy()
+                self.filtre_globale_active.clear()
+                
+                for nume, btn in self.btn_filtre.items():
+                    btn.config(text=nume)
+                
                 self.btn_salveaza.config(state=tk.NORMAL)
                 self.btn_reset.config(state=tk.NORMAL)
                 self.schimba_mod() 
+                self.recalculeaza_imagine_globala()
+                
                 nume_fisier = cale_fisier.split('/')[-1]
                 self.lbl_status.config(text=f"Fisier deschis: {nume_fisier}")
             except Exception as e:
@@ -227,16 +235,71 @@ class EditorFotoApp:
 
     def reseteaza_imagine(self):
         if self.imagine_originala:
-            self.imagine_curenta = self.imagine_originala.copy()
-            self.imagine_filtrata_brush = None  # Resetam doar imaginea filtrata din memorie
+            self.imagine_baza = self.imagine_originala.copy()
+            self.filtre_globale_active.clear()
+            self.imagine_baza_filtrata_brush = None
+            
+            for nume, btn in self.btn_filtre.items():
+                btn.config(text=nume)
+                
             self.sterge_selectia_vizuala()
-            self.actualizeaza_afisaj()
-            # FARA self.schimba_mod(), astfel setarile UI curente si filtrul incarcat pe pensula NU se pierd!
+            self.recalculeaza_imagine_globala()
+
+    def recalculeaza_imagine_globala(self):
+        if not self.imagine_baza: return
+        
+        # Aplicam filtrele globale succesiv, pornind de la baza
+        img_temp = self.imagine_baza.copy()
+        functii = self.get_functii_filtre()
+        
+        for nume_filtru in self.filtre_globale_active:
+            img_temp = functii[nume_filtru](img_temp)
+            
+        self.imagine_curenta = img_temp
+        self.actualizeaza_afisaj()
+
+    def proceseaza_actiune_filtru(self, nume_filtru):
+        if not self.imagine_baza: return
+        mod = self.mod_lucru.get()
+
+        if mod == "GLOBAL":
+            # Sistemul Toggle (Comutator)
+            if nume_filtru in self.filtre_globale_active:
+                self.filtre_globale_active.remove(nume_filtru)
+                self.btn_filtre[nume_filtru].config(text=nume_filtru)
+            else:
+                self.filtre_globale_active.append(nume_filtru)
+                self.btn_filtre[nume_filtru].config(text=f"* {nume_filtru}")
+            
+            self.recalculeaza_imagine_globala()
+            
+        elif mod == "SELECTIE" and self.selectie_curenta:
+            raport_w = self.imagine_baza.width / self.afisaj_w
+            raport_h = self.imagine_baza.height / self.afisaj_h
+            
+            x1, y1, x2, y2 = self.selectie_curenta
+            x1, y1 = max(0, int(x1 * raport_w)), max(0, int(y1 * raport_h))
+            x2, y2 = min(self.imagine_baza.width, int(x2 * raport_w)), min(self.imagine_baza.height, int(y2 * raport_h))
+            
+            roi = self.imagine_baza.crop((x1, y1, x2, y2))
+            functie_activa = self.get_functii_filtre()[nume_filtru]
+            roi_procesat = functie_activa(roi)
+            
+            if self.imagine_baza.mode != roi_procesat.mode:
+                roi_procesat = roi_procesat.convert(self.imagine_baza.mode)
+                
+            self.imagine_baza.paste(roi_procesat, (x1, y1))
+            self.sterge_selectia_vizuala()
+            self.recalculeaza_imagine_globala()
+            
+        elif mod == "BRUSH":
+            self.nume_filtru_brush = nume_filtru
+            self.lbl_status.config(text=f"Pensula incarcata cu: {nume_filtru}. Poti desena.")
 
     def actualizeaza_afisaj(self):
         if self.imagine_curenta:
             img_afisare = self.imagine_curenta.copy()
-            img_afisare.thumbnail((750, 600))
+            img_afisare.thumbnail((800, 650))
             
             self.afisaj_w = img_afisare.width
             self.afisaj_h = img_afisare.height
@@ -251,19 +314,15 @@ class EditorFotoApp:
             if self.brush_cursor:
                 self.canvas_imagine.tag_raise(self.brush_cursor)
 
-    # --- PAN (REARANJARE IMAGINE) ---
     def start_pan(self, event):
         self.canvas_imagine.scan_mark(event.x, event.y)
 
     def do_pan(self, event):
         self.canvas_imagine.scan_dragto(event.x, event.y, gain=1)
 
-    # --- EVENIMENTE MOUSE ADAPTATE PENTRU COORDONATELE CANVAS ---
     def on_mouse_press(self, event):
-        if not self.imagine_curenta: return
+        if not self.imagine_baza: return
         mod = self.mod_lucru.get()
-        
-        # Preluam coordonatele in raport cu canvasul miscat, nu doar fereastra
         cx = self.canvas_imagine.canvasx(event.x)
         cy = self.canvas_imagine.canvasy(event.y)
 
@@ -275,19 +334,18 @@ class EditorFotoApp:
             self.rect_id = self.canvas_imagine.create_rectangle(
                 self.start_x, self.start_y, self.start_x, self.start_y, outline='red', width=2, dash=(4, 4)
             )
-        elif mod == "BRUSH" and self.filtru_activ_brush:
-            # Recream sursa statica filtrata daca s-a dat click din nou sau s-a dat reset
-            self.imagine_filtrata_brush = self.filtru_activ_brush(self.imagine_curenta)
-            if self.imagine_curenta.mode != self.imagine_filtrata_brush.mode:
-                self.imagine_filtrata_brush = self.imagine_filtrata_brush.convert(self.imagine_curenta.mode)
+        elif mod == "BRUSH" and self.nume_filtru_brush:
+            functie = self.get_functii_filtre()[self.nume_filtru_brush]
+            self.imagine_baza_filtrata_brush = functie(self.imagine_baza)
+            if self.imagine_baza.mode != self.imagine_baza_filtrata_brush.mode:
+                self.imagine_baza_filtrata_brush = self.imagine_baza_filtrata_brush.convert(self.imagine_baza.mode)
             
             self.is_brushing = True
             self.aplica_brush(cx, cy)
 
     def on_mouse_drag(self, event):
-        if not self.imagine_curenta: return
+        if not self.imagine_baza: return
         mod = self.mod_lucru.get()
-
         cx = self.canvas_imagine.canvasx(event.x)
         cy = self.canvas_imagine.canvasy(event.y)
         
@@ -301,9 +359,8 @@ class EditorFotoApp:
             self.aplica_brush(cur_x, cur_y)
 
     def on_mouse_release(self, event):
-        if not self.imagine_curenta: return
+        if not self.imagine_baza: return
         mod = self.mod_lucru.get()
-
         cx = self.canvas_imagine.canvasx(event.x)
         cy = self.canvas_imagine.canvasy(event.y)
 
@@ -318,7 +375,7 @@ class EditorFotoApp:
                 self.sterge_selectia_vizuala()
         elif mod == "BRUSH":
             self.is_brushing = False
-            self.imagine_filtrata_brush = None
+            self.imagine_baza_filtrata_brush = None
 
     def on_mouse_motion(self, event):
         if self.mod_lucru.get() == "BRUSH":
@@ -330,14 +387,11 @@ class EditorFotoApp:
             self.brush_cursor = None
 
     def actualizeaza_cerc_brush(self, window_x, window_y):
-        if self.brush_cursor:
-            self.canvas_imagine.delete(self.brush_cursor)
-            
+        if self.brush_cursor: self.canvas_imagine.delete(self.brush_cursor)
         cx = self.canvas_imagine.canvasx(window_x)
         cy = self.canvas_imagine.canvasy(window_y)
         r = self.dim_brush.get()
         
-        # Cursorul este actualizat la coordonatele re-mapate ale canvasului
         if 0 <= cx <= self.afisaj_w and 0 <= cy <= self.afisaj_h:
             self.brush_cursor = self.canvas_imagine.create_oval(
                 cx - r, cy - r, cx + r, cy + r, outline="white", dash=(2, 2)
@@ -349,66 +403,32 @@ class EditorFotoApp:
             self.rect_id = None
         self.selectie_curenta = None
 
-    def proceseaza_actiune_filtru(self, nume_filtru, functie_logica):
-        if not self.imagine_curenta: return
-        mod = self.mod_lucru.get()
-
-        if mod == "GLOBAL":
-            self.imagine_curenta = functie_logica(self.imagine_curenta)
-            self.actualizeaza_afisaj()
-        
-        elif mod == "SELECTIE" and self.selectie_curenta:
-            raport_w = self.imagine_curenta.width / self.afisaj_w
-            raport_h = self.imagine_curenta.height / self.afisaj_h
-            
-            x1, y1, x2, y2 = self.selectie_curenta
-            x1, y1 = max(0, int(x1 * raport_w)), max(0, int(y1 * raport_h))
-            x2, y2 = min(self.imagine_curenta.width, int(x2 * raport_w)), min(self.imagine_curenta.height, int(y2 * raport_h))
-            
-            roi = self.imagine_curenta.crop((x1, y1, x2, y2))
-            roi_procesat = functie_logica(roi)
-            
-            if self.imagine_curenta.mode != roi_procesat.mode:
-                roi_procesat = roi_procesat.convert(self.imagine_curenta.mode)
-                
-            self.imagine_curenta.paste(roi_procesat, (x1, y1))
-            self.actualizeaza_afisaj()
-            self.sterge_selectia_vizuala() # Curatam chenarul ca sa vedem clar rezultatul
-            
-        elif mod == "BRUSH":
-            self.filtru_activ_brush = functie_logica
-            self.lbl_status.config(text=f"Pensula incarcata cu: {nume_filtru}. Trage pe imagine pentru a aplica.")
-
     def aplica_brush(self, cx, cy):
-        if not self.imagine_filtrata_brush:
-            return
+        if not self.imagine_baza_filtrata_brush: return
 
-        raport_w = self.imagine_curenta.width / self.afisaj_w
-        raport_h = self.imagine_curenta.height / self.afisaj_h
+        raport_w = self.imagine_baza.width / self.afisaj_w
+        raport_h = self.imagine_baza.height / self.afisaj_h
         
-        orig_x = int(cx * raport_w)
-        orig_y = int(cy * raport_h)
+        orig_x, orig_y = int(cx * raport_w), int(cy * raport_h)
         orig_r = int(self.dim_brush.get() * max(raport_w, raport_h)) 
         
-        left = max(0, orig_x - orig_r)
-        upper = max(0, orig_y - orig_r)
-        right = min(self.imagine_curenta.width, orig_x + orig_r)
-        lower = min(self.imagine_curenta.height, orig_y + orig_r)
+        left, upper = max(0, orig_x - orig_r), max(0, orig_y - orig_r)
+        right, lower = min(self.imagine_baza.width, orig_x + orig_r), min(self.imagine_baza.height, orig_y + orig_r)
         
-        if left >= right or upper >= lower:
-            return
+        if left >= right or upper >= lower: return
 
-        roi_procesat = self.imagine_filtrata_brush.crop((left, upper, right, lower))
+        roi_procesat = self.imagine_baza_filtrata_brush.crop((left, upper, right, lower))
         
         mask = Image.new("L", (right - left, lower - upper), 0)
         draw = ImageDraw.Draw(mask)
         c_x, c_y = orig_x - left, orig_y - upper
         draw.ellipse((c_x - orig_r, c_y - orig_r, c_x + orig_r, c_y + orig_r), fill=255)
         
-        self.imagine_curenta.paste(roi_procesat, (left, upper), mask)
-        self.actualizeaza_afisaj()
+        self.imagine_baza.paste(roi_procesat, (left, upper), mask)
+        self.recalculeaza_imagine_globala()
 
-    # --- FUNCTII FILTRE INDIVIDUALE ---
+    # --- FUNCTII FILTRE MATEMATICE INDIVIDUALE ---
+
     def logica_negativ(self, img):
         if img.mode == "RGBA":
             r, g, b, a = img.split()
@@ -417,21 +437,19 @@ class EditorFotoApp:
             r2, g2, b2 = img_inversata.split()
             return Image.merge("RGBA", (r2, g2, b2, a))
         else:
-            if img.mode == '1': 
-                img = img.convert("L")
+            if img.mode == '1': img = img.convert("L")
             return ImageOps.invert(img)
 
     def logica_binarizare(self, img, prag):
-        img_gri = img.convert("L")
-        return img_gri.point(lambda p: 255 if p > prag else 0)
+        return img.convert("L").point(lambda p: 255 if p > prag else 0)
 
-    def logica_aberration(self, img):
+    def logica_aberration(self, img, deplasare):
+        if deplasare == 0: return img
         img_rgb = img.convert("RGB")
         r, g, b = img_rgb.split()
-        latime, inaltime = img_rgb.size
-        deplasare = 10
-        r_shift = r.transform((latime, inaltime), Image.AFFINE, (1, 0, deplasare, 0, 1, 0))
-        b_shift = b.transform((latime, inaltime), Image.AFFINE, (1, 0, -deplasare, 0, 1, 0))
+        w, h = img_rgb.size
+        r_shift = r.transform((w, h), Image.AFFINE, (1, 0, deplasare, 0, 1, 0))
+        b_shift = b.transform((w, h), Image.AFFINE, (1, 0, -deplasare, 0, 1, 0))
         return Image.merge("RGB", (r_shift, g, b_shift))
 
     def logica_canny(self, img):
@@ -439,6 +457,19 @@ class EditorFotoApp:
         img_gri_cv2 = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
         contururi = cv2.Canny(img_gri_cv2, 100, 200)
         return Image.fromarray(contururi)
+
+    def logica_sare_piper(self, img):
+        # Probabilitate fixa de 5% pentru a tine programul rapid si ordonat
+        prob = 0.05
+        img_array = np.array(img.convert("RGB"))
+        noise = np.random.rand(img_array.shape[0], img_array.shape[1])
+        
+        img_array[noise < (prob / 2)] = [255, 255, 255]
+        img_array[noise > (1 - prob / 2)] = [0, 0, 0]
+        
+        if img.mode != "RGB":
+            return Image.fromarray(img_array).convert(img.mode)
+        return Image.fromarray(img_array)
 
 if __name__ == "__main__":
     root = tk.Tk()
