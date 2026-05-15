@@ -7,8 +7,8 @@ import numpy as np
 class EditorFotoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Editor Foto Profesional")
-        self.root.geometry("1050x800")
+        self.root.title("Editor Foto - Neactivat 25 Zile Ramase")
+        self.root.geometry("1340x780")
         
         self.style = ttk.Style()
         if "clam" in self.style.theme_names():
@@ -78,57 +78,81 @@ class EditorFotoApp:
         self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
-        # Panou Stanga
-        left_frame = ttk.Frame(main_frame, width=240, padding="10", relief=tk.RIDGE)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # Panou Stanga scrollabil
+        left_holder = ttk.Frame(main_frame, width=240)
+        left_holder.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        ttk.Label(left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
+        self.left_canvas = tk.Canvas(left_holder, width=240, highlightthickness=0)
+        self.left_scrollbar = ttk.Scrollbar(left_holder, orient=tk.VERTICAL, command=self.left_canvas.yview)
+        self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
+        self.left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Transformat din variabila locala in membru de clasa pentru control inaltimi
+        self.left_frame = ttk.Frame(self.left_canvas, width=240, padding="10", relief=tk.RIDGE)
+        self.left_window_id = self.left_canvas.create_window((0, 0), window=self.left_frame, anchor="nw")
+        
+        self.left_frame.bind(
+            "<Configure>",
+            lambda e: (self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all")), self._update_left_scrollbar_visibility())
+        )
+        
+        # Evenimentul cheie care redimensioneaza corect "mod de lucru"
+        self.left_canvas.bind("<Configure>", self._on_canvas_configure)
+        
+        self.root.after(0, self._update_left_scrollbar_visibility)
+
+        # AICI E SOLUTIA PTR SCROLL: Inlocuim binding-ul local cu bind_all pe toata aplicatia
+        self.root.bind_all("<MouseWheel>", self._on_left_mousewheel)
+        self.root.bind_all("<Button-4>", self._on_left_mousewheel)
+        self.root.bind_all("<Button-5>", self._on_left_mousewheel)
+
+        ttk.Label(self.left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
         self.mod_lucru = tk.StringVar(value="GLOBAL")
         
-        ttk.Radiobutton(left_frame, text="Pe toata poza (Toggle)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(left_frame, text="Pe selectie", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(left_frame, text="Pensula (Brush)", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Pe toata poza (Toggle)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Pe selectie", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Pensula (Brush)", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
         
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        ttk.Label(left_frame, text="Marime Pensula (Ctrl +/-)", font=("Helvetica", 9)).pack()
-        self.slider_brush = ttk.Scale(left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL)
+        ttk.Label(self.left_frame, text="Marime Pensula (Ctrl +/-)", font=("Helvetica", 9)).pack()
+        self.slider_brush = ttk.Scale(self.left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL)
         self.slider_brush.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         # SECTIUNEA FILTRE
-        ttk.Label(left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
+        ttk.Label(self.left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
 
-        ttk.Label(left_frame, text="Binarizare (Prag)", font=("Helvetica", 9)).pack()
-        self.slider_prag = ttk.Scale(left_frame, from_=0, to=255, orient=tk.HORIZONTAL, command=self.on_slider_change)
+        ttk.Label(self.left_frame, text="Binarizare (Prag)", font=("Helvetica", 9)).pack()
+        self.slider_prag = ttk.Scale(self.left_frame, from_=0, to=255, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_prag.set(128)
         self.slider_prag.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(left_frame, text="Aberration (Intensitate)", font=("Helvetica", 9)).pack()
-        self.slider_aberration = ttk.Scale(left_frame, from_=0, to=30, orient=tk.HORIZONTAL, command=self.on_slider_change)
+        ttk.Label(self.left_frame, text="Aberration (Intensitate)", font=("Helvetica", 9)).pack()
+        self.slider_aberration = ttk.Scale(self.left_frame, from_=0, to=30, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_aberration.set(10)
         self.slider_aberration.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(left_frame, text="Blur (Radius)", font=("Helvetica", 9)).pack()
-        self.slider_blur = ttk.Scale(left_frame, from_=0, to=10, orient=tk.HORIZONTAL, command=self.on_slider_change)
+        ttk.Label(self.left_frame, text="Blur (Radius)", font=("Helvetica", 9)).pack()
+        self.slider_blur = ttk.Scale(self.left_frame, from_=0, to=10, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_blur.set(2)
         self.slider_blur.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         # BUTOANE FILTRE
         lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper"]
         
         for nume in lista_filtre:
-            btn = ttk.Button(left_frame, text=nume, state=tk.DISABLED, 
+            btn = ttk.Button(self.left_frame, text=nume, state=tk.DISABLED, 
                              command=lambda n=nume: self.proceseaza_actiune_filtru(n))
             btn.pack(fill=tk.X, pady=2)
             self.btn_filtre[nume] = btn
 
-        ttk.Frame(left_frame).pack(expand=True)
+        ttk.Frame(self.left_frame).pack(expand=True)
 
-        self.btn_reset = ttk.Button(left_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
+        self.btn_reset = ttk.Button(self.left_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
         self.btn_reset.pack(fill=tk.X, pady=(10, 0))
 
         # Zona Centrala
@@ -149,8 +173,58 @@ class EditorFotoApp:
         self.canvas_imagine.bind("<ButtonPress-3>", self.start_pan)
         self.canvas_imagine.bind("<B3-Motion>", self.do_pan)
 
+    def _on_canvas_configure(self, event):
+        # Mentine mereu latimea fidela cu vizualizarea din stanga
+        self.left_canvas.itemconfig(self.left_window_id, width=event.width)
+        
+        # Obtinem necesarul de inaltime al panoului
+        req_height = self.left_frame.winfo_reqheight()
+        
+        # Extindere dinamica si repararea erorii de 'bad screen distance ""'
+        # Panoul va fi cel putin cat e nevoie pt butoane, dar se va lungi dupa fereastra
+        noua_inaltime = max(req_height, event.height)
+        self.left_canvas.itemconfig(self.left_window_id, height=noua_inaltime)
+            
+        # Dupa ce ajustam dimensiunile ferestrei, actualizam scrollregion inainte sa testam aparitia bar-ului
+        self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
+        self._update_left_scrollbar_visibility()
+
+    def _on_left_mousewheel(self, event):
+        # Functie protejata cu try-except pt stabilitate
+        try:
+            # Obtinem coordonatele globale ale mouse-ului relativ la zona din stanga
+            x = self.root.winfo_pointerx() - self.left_canvas.winfo_rootx()
+            y = self.root.winfo_pointery() - self.left_canvas.winfo_rooty()
+            
+            # Executa scroll doar daca sageata se afla deasupra panoului
+            if 0 <= x <= self.left_canvas.winfo_width() and 0 <= y <= self.left_canvas.winfo_height():
+                if getattr(event, 'num', 0) == 4 or getattr(event, 'delta', 0) > 0:
+                    self.left_canvas.yview_scroll(-1, "units")
+                elif getattr(event, 'num', 0) == 5 or getattr(event, 'delta', 0) < 0:
+                    self.left_canvas.yview_scroll(1, "units")
+        except tk.TclError:
+            pass # Previne posibile erori daca se da scroll cand aplicatia se inchide sau incarca imagini grele
+
+    def _update_left_scrollbar_visibility(self):
+        bbox = self.left_canvas.bbox("all")
+        view_height = self.left_canvas.winfo_height()
+        if view_height <= 1:
+            self.root.after(50, self._update_left_scrollbar_visibility)
+            return
+        if not bbox:
+            if self.left_scrollbar.winfo_ismapped():
+                self.left_scrollbar.pack_forget()
+            return
+
+        content_height = bbox[3] - bbox[1]
+        if content_height > view_height:
+            if not self.left_scrollbar.winfo_ismapped():
+                self.left_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        else:
+            if self.left_scrollbar.winfo_ismapped():
+                self.left_scrollbar.pack_forget()
+
     def on_slider_change(self, val):
-        # Declanseaza recalcularea cu un mic delay pentru a evita lag-ul pe Raspberry Pi
         if self.slider_timer:
             self.root.after_cancel(self.slider_timer)
         self.slider_timer = self.root.after(100, self.executa_recalculare_slider)
@@ -254,7 +328,6 @@ class EditorFotoApp:
     def recalculeaza_imagine_globala(self):
         if not self.imagine_baza: return
         
-        # Aplicam filtrele globale succesiv, pornind de la baza
         img_temp = self.imagine_baza.copy()
         functii = self.get_functii_filtre()
         
@@ -269,7 +342,6 @@ class EditorFotoApp:
         mod = self.mod_lucru.get()
 
         if mod == "GLOBAL":
-            # Sistemul Toggle (Comutator)
             if nume_filtru in self.filtre_globale_active:
                 self.filtre_globale_active.remove(nume_filtru)
                 self.btn_filtre[nume_filtru].config(text=nume_filtru)
@@ -465,7 +537,7 @@ class EditorFotoApp:
         return Image.fromarray(contururi)
 
     def logica_sare_piper(self, img):
-        # Probabilitate fixa de 5% pentru a tine programul rapid si ordonat
+        # Probabilitate fixa de 5%
         prob = 0.05
         img_array = np.array(img.convert("RGB"))
         noise = np.random.rand(img_array.shape[0], img_array.shape[1])
