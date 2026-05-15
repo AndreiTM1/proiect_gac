@@ -8,7 +8,7 @@ class EditorFotoApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Editor Foto - Neactivat 25 Zile Ramase")
-        self.root.geometry("1340x780")
+        self.root.geometry("1600x900")
         
         self.style = ttk.Style()
         if "clam" in self.style.theme_names():
@@ -87,7 +87,6 @@ class EditorFotoApp:
         self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
         self.left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Transformat din variabila locala in membru de clasa pentru control inaltimi
         self.left_frame = ttk.Frame(self.left_canvas, width=240, padding="10", relief=tk.RIDGE)
         self.left_window_id = self.left_canvas.create_window((0, 0), window=self.left_frame, anchor="nw")
         
@@ -96,12 +95,10 @@ class EditorFotoApp:
             lambda e: (self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all")), self._update_left_scrollbar_visibility())
         )
         
-        # Evenimentul cheie care redimensioneaza corect "mod de lucru"
         self.left_canvas.bind("<Configure>", self._on_canvas_configure)
         
         self.root.after(0, self._update_left_scrollbar_visibility)
 
-        # AICI E SOLUTIA PTR SCROLL: Inlocuim binding-ul local cu bind_all pe toata aplicatia
         self.root.bind_all("<MouseWheel>", self._on_left_mousewheel)
         self.root.bind_all("<Button-4>", self._on_left_mousewheel)
         self.root.bind_all("<Button-5>", self._on_left_mousewheel)
@@ -120,6 +117,44 @@ class EditorFotoApp:
         self.slider_brush.pack(fill=tk.X, pady=(0, 10))
 
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+
+        # --- NOU: SECTIUNEA TRANSFORMARE (Rotire + Resize) ---
+        self.frame_transformare = ttk.Frame(self.left_frame)
+        self.frame_transformare.pack(fill=tk.X, pady=0)
+        
+        ttk.Label(self.frame_transformare, text="Transformare", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
+
+        btn_rot_frame = ttk.Frame(self.frame_transformare)
+        btn_rot_frame.pack(fill=tk.X, pady=2)
+        
+        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire ↺", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
+        self.btn_rot_ccw.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
+
+        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire ↻", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
+        self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
+
+        self.var_resize = tk.BooleanVar(value=False)
+        self.chk_resize = ttk.Checkbutton(self.frame_transformare, text="Dimensiuni (Resize)", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
+        self.chk_resize.pack(fill=tk.X, pady=5)
+
+        # Panoul intern de resize (ascuns by default)
+        self.frame_resize = ttk.Frame(self.frame_transformare)
+        
+        lbl_w = ttk.Label(self.frame_resize, text="W:")
+        lbl_w.pack(side=tk.LEFT, padx=2)
+        self.entry_w = ttk.Entry(self.frame_resize, width=5)
+        self.entry_w.pack(side=tk.LEFT, padx=2)
+
+        lbl_h = ttk.Label(self.frame_resize, text="H:")
+        lbl_h.pack(side=tk.LEFT, padx=2)
+        self.entry_h = ttk.Entry(self.frame_resize, width=5)
+        self.entry_h.pack(side=tk.LEFT, padx=2)
+
+        self.btn_aplica_resize = ttk.Button(self.frame_resize, text="Aplica", command=self.aplica_resize)
+        self.btn_aplica_resize.pack(side=tk.LEFT, padx=4)
+
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        # --- FINAL NOU ---
 
         # SECTIUNEA FILTRE
         ttk.Label(self.left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
@@ -174,36 +209,24 @@ class EditorFotoApp:
         self.canvas_imagine.bind("<B3-Motion>", self.do_pan)
 
     def _on_canvas_configure(self, event):
-        # Mentine mereu latimea fidela cu vizualizarea din stanga
         self.left_canvas.itemconfig(self.left_window_id, width=event.width)
-        
-        # Obtinem necesarul de inaltime al panoului
         req_height = self.left_frame.winfo_reqheight()
-        
-        # Extindere dinamica si repararea erorii de 'bad screen distance ""'
-        # Panoul va fi cel putin cat e nevoie pt butoane, dar se va lungi dupa fereastra
         noua_inaltime = max(req_height, event.height)
         self.left_canvas.itemconfig(self.left_window_id, height=noua_inaltime)
-            
-        # Dupa ce ajustam dimensiunile ferestrei, actualizam scrollregion inainte sa testam aparitia bar-ului
         self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
         self._update_left_scrollbar_visibility()
 
     def _on_left_mousewheel(self, event):
-        # Functie protejata cu try-except pt stabilitate
         try:
-            # Obtinem coordonatele globale ale mouse-ului relativ la zona din stanga
             x = self.root.winfo_pointerx() - self.left_canvas.winfo_rootx()
             y = self.root.winfo_pointery() - self.left_canvas.winfo_rooty()
-            
-            # Executa scroll doar daca sageata se afla deasupra panoului
             if 0 <= x <= self.left_canvas.winfo_width() and 0 <= y <= self.left_canvas.winfo_height():
                 if getattr(event, 'num', 0) == 4 or getattr(event, 'delta', 0) > 0:
                     self.left_canvas.yview_scroll(-1, "units")
                 elif getattr(event, 'num', 0) == 5 or getattr(event, 'delta', 0) < 0:
                     self.left_canvas.yview_scroll(1, "units")
         except tk.TclError:
-            pass # Previne posibile erori daca se da scroll cand aplicatia se inchide sau incarca imagini grele
+            pass 
 
     def _update_left_scrollbar_visibility(self):
         bbox = self.left_canvas.bbox("all")
@@ -223,6 +246,56 @@ class EditorFotoApp:
         else:
             if self.left_scrollbar.winfo_ismapped():
                 self.left_scrollbar.pack_forget()
+
+    # --- ACTIUNI NOI ROTIRE SI RESIZE ---
+    def roteste_imagine(self, unghi):
+        if not self.imagine_baza: return
+        if unghi == 90:
+            self.imagine_baza = self.imagine_baza.transpose(Image.ROTATE_90)
+            self.imagine_originala = self.imagine_originala.transpose(Image.ROTATE_90)
+        elif unghi == 270:
+            self.imagine_baza = self.imagine_baza.transpose(Image.ROTATE_270)
+            self.imagine_originala = self.imagine_originala.transpose(Image.ROTATE_270)
+            
+        self.sterge_selectia_vizuala()
+        self.recalculeaza_imagine_globala()
+        
+        # Actualizam datele in intrari daca modul resize e afisat
+        if self.var_resize.get():
+            self.entry_w.delete(0, tk.END)
+            self.entry_w.insert(0, str(self.imagine_baza.width))
+            self.entry_h.delete(0, tk.END)
+            self.entry_h.insert(0, str(self.imagine_baza.height))
+
+    def toggle_resize_ui(self):
+        if self.var_resize.get():
+            self.frame_resize.pack(fill=tk.X, pady=2)
+            if self.imagine_baza:
+                self.entry_w.delete(0, tk.END)
+                self.entry_w.insert(0, str(self.imagine_baza.width))
+                self.entry_h.delete(0, tk.END)
+                self.entry_h.insert(0, str(self.imagine_baza.height))
+        else:
+            self.frame_resize.pack_forget()
+
+    def aplica_resize(self):
+        if not self.imagine_baza: return
+        try:
+            new_w = int(self.entry_w.get())
+            new_h = int(self.entry_h.get())
+            if new_w > 0 and new_h > 0:
+                try:
+                    resample_filter = Image.Resampling.LANCZOS
+                except AttributeError:
+                    resample_filter = Image.LANCZOS
+                    
+                self.imagine_baza = self.imagine_baza.resize((new_w, new_h), resample_filter)
+                self.imagine_originala = self.imagine_originala.resize((new_w, new_h), resample_filter)
+                self.sterge_selectia_vizuala()
+                self.recalculeaza_imagine_globala()
+        except ValueError:
+            messagebox.showerror("Eroare", "Dimensiunile trebuie sa fie numere intregi.")
+    # ------------------------------------
 
     def on_slider_change(self, val):
         if self.slider_timer:
@@ -287,8 +360,20 @@ class EditorFotoApp:
                 
                 self.btn_salveaza.config(state=tk.NORMAL)
                 self.btn_reset.config(state=tk.NORMAL)
+                
+                # Activam setarile de transformare la incarcarea pozei
+                self.btn_rot_ccw.config(state=tk.NORMAL)
+                self.btn_rot_cw.config(state=tk.NORMAL)
+                self.chk_resize.config(state=tk.NORMAL)
+
                 self.schimba_mod() 
                 self.recalculeaza_imagine_globala()
+                
+                if self.var_resize.get():
+                    self.entry_w.delete(0, tk.END)
+                    self.entry_w.insert(0, str(self.imagine_baza.width))
+                    self.entry_h.delete(0, tk.END)
+                    self.entry_h.insert(0, str(self.imagine_baza.height))
                 
                 nume_fisier = cale_fisier.split('/')[-1]
                 self.lbl_status.config(text=f"Fisier deschis: {nume_fisier}")
@@ -324,6 +409,12 @@ class EditorFotoApp:
                 
             self.sterge_selectia_vizuala()
             self.recalculeaza_imagine_globala()
+            
+            if self.var_resize.get():
+                self.entry_w.delete(0, tk.END)
+                self.entry_w.insert(0, str(self.imagine_baza.width))
+                self.entry_h.delete(0, tk.END)
+                self.entry_h.insert(0, str(self.imagine_baza.height))
 
     def recalculeaza_imagine_globala(self):
         if not self.imagine_baza: return
