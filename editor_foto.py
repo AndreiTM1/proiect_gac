@@ -14,10 +14,11 @@ class EditorFotoApp:
         if "clam" in self.style.theme_names():
             self.style.theme_use("clam")
 
-        # ARHITECTURA NOUA DE IMAGINI
-        self.imagine_originala = None
-        self.imagine_baza = None     # Imaginea care contine editarile permanente (pensula/selectie)
-        self.imagine_curenta = None  # Imaginea finala afisata (Baza + Filtre Globale)
+        # ARHITECTURA NOUA DE IMAGINI (Smart Object)
+        self.imagine_absolut_originala = None # Clona 100% pura, folosita pentru Reset
+        self.imagine_originala = None         # Clona de inalta rezolutie folosita ca sursa pentru Resize
+        self.imagine_baza = None              # Imaginea de lucru
+        self.imagine_curenta = None           # Imaginea afisata
         self.tk_imagine = None
         
         # Variabile desenare
@@ -35,9 +36,9 @@ class EditorFotoApp:
         self.imagine_baza_filtrata_brush = None
         self.is_brushing = False
         
-        self.filtre_globale_active = [] # Lista filtrelor activate ca toggle
-        self.btn_filtre = {}            # Referinte la butoane pentru a le schimba textul
-        self.slider_timer = None        # Previne lag-ul cand se trage rapid de slider
+        self.filtre_globale_active = [] 
+        self.btn_filtre = {}            
+        self.slider_timer = None        
         
         self.creare_interfata()
         self.setari_scurtaturi()
@@ -50,7 +51,6 @@ class EditorFotoApp:
         self.root.bind("<Control-KP_Subtract>", self.micsoreaza_brush)
 
     def get_functii_filtre(self):
-        # Dictionar care leaga numele filtrului de functia matematica
         return {
             "Alb-Negru": lambda img: img.convert("L"),
             "Negativare": self.logica_negativ,
@@ -65,7 +65,6 @@ class EditorFotoApp:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Top Bar
         top_frame = ttk.Frame(main_frame, padding="5", relief=tk.GROOVE)
         top_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
 
@@ -78,7 +77,6 @@ class EditorFotoApp:
         self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
-        # Panou Stanga scrollabil
         left_holder = ttk.Frame(main_frame, width=240)
         left_holder.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
@@ -96,7 +94,6 @@ class EditorFotoApp:
         )
         
         self.left_canvas.bind("<Configure>", self._on_canvas_configure)
-        
         self.root.after(0, self._update_left_scrollbar_visibility)
 
         self.root.bind_all("<MouseWheel>", self._on_left_mousewheel)
@@ -118,7 +115,7 @@ class EditorFotoApp:
 
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
-        # --- NOU: SECTIUNEA TRANSFORMARE (Rotire + Resize) ---
+        # SECTIUNEA TRANSFORMARE
         self.frame_transformare = ttk.Frame(self.left_frame)
         self.frame_transformare.pack(fill=tk.X, pady=0)
         
@@ -137,7 +134,6 @@ class EditorFotoApp:
         self.chk_resize = ttk.Checkbutton(self.frame_transformare, text="Dimensiuni (Resize)", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
         self.chk_resize.pack(fill=tk.X, pady=5)
 
-        # Panoul intern de resize (ascuns by default)
         self.frame_resize = ttk.Frame(self.frame_transformare)
         
         lbl_w = ttk.Label(self.frame_resize, text="W:")
@@ -154,7 +150,6 @@ class EditorFotoApp:
         self.btn_aplica_resize.pack(side=tk.LEFT, padx=4)
 
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        # --- FINAL NOU ---
 
         # SECTIUNEA FILTRE
         ttk.Label(self.left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
@@ -247,9 +242,10 @@ class EditorFotoApp:
             if self.left_scrollbar.winfo_ismapped():
                 self.left_scrollbar.pack_forget()
 
-    # --- ACTIUNI NOI ROTIRE SI RESIZE ---
+    # --- ACTIUNI ROTIRE SI RESIZE (SMART OBJECT) ---
     def roteste_imagine(self, unghi):
         if not self.imagine_baza: return
+        # Rotim atat imaginea de lucru cat si sursa de rezolutie inalta
         if unghi == 90:
             self.imagine_baza = self.imagine_baza.transpose(Image.ROTATE_90)
             self.imagine_originala = self.imagine_originala.transpose(Image.ROTATE_90)
@@ -260,7 +256,6 @@ class EditorFotoApp:
         self.sterge_selectia_vizuala()
         self.recalculeaza_imagine_globala()
         
-        # Actualizam datele in intrari daca modul resize e afisat
         if self.var_resize.get():
             self.entry_w.delete(0, tk.END)
             self.entry_w.insert(0, str(self.imagine_baza.width))
@@ -289,13 +284,14 @@ class EditorFotoApp:
                 except AttributeError:
                     resample_filter = Image.LANCZOS
                     
-                self.imagine_baza = self.imagine_baza.resize((new_w, new_h), resample_filter)
-                self.imagine_originala = self.imagine_originala.resize((new_w, new_h), resample_filter)
+                # AICI ESTE MAGICUL: Tragem pixelii din poza originala de calitate superioara, 
+                # astfel poti mari imaginea fara sa fie taiati pixelii sau blurata!
+                self.imagine_baza = self.imagine_originala.resize((new_w, new_h), resample_filter)
+                
                 self.sterge_selectia_vizuala()
                 self.recalculeaza_imagine_globala()
         except ValueError:
             messagebox.showerror("Eroare", "Dimensiunile trebuie sa fie numere intregi.")
-    # ------------------------------------
 
     def on_slider_change(self, val):
         if self.slider_timer:
@@ -351,7 +347,9 @@ class EditorFotoApp:
         )
         if cale_fisier:
             try:
-                self.imagine_originala = Image.open(cale_fisier)
+                # Salvam clona absoluta a fisierului (neatinsa de transformari sau filtre)
+                self.imagine_absolut_originala = Image.open(cale_fisier)
+                self.imagine_originala = self.imagine_absolut_originala.copy()
                 self.imagine_baza = self.imagine_originala.copy()
                 self.filtre_globale_active.clear()
                 
@@ -361,7 +359,6 @@ class EditorFotoApp:
                 self.btn_salveaza.config(state=tk.NORMAL)
                 self.btn_reset.config(state=tk.NORMAL)
                 
-                # Activam setarile de transformare la incarcarea pozei
                 self.btn_rot_ccw.config(state=tk.NORMAL)
                 self.btn_rot_cw.config(state=tk.NORMAL)
                 self.chk_resize.config(state=tk.NORMAL)
@@ -399,8 +396,11 @@ class EditorFotoApp:
                     messagebox.showerror("Eroare", f"Nu s-a putut salva imaginea:\n{e}")
 
     def reseteaza_imagine(self):
-        if self.imagine_originala:
+        if self.imagine_absolut_originala:
+            # Acum resetul reface absolut tot (dimensiune, rotatie si calitate)
+            self.imagine_originala = self.imagine_absolut_originala.copy()
             self.imagine_baza = self.imagine_originala.copy()
+            
             self.filtre_globale_active.clear()
             self.imagine_baza_filtrata_brush = None
             
@@ -628,7 +628,6 @@ class EditorFotoApp:
         return Image.fromarray(contururi)
 
     def logica_sare_piper(self, img):
-        # Probabilitate fixa de 5%
         prob = 0.05
         img_array = np.array(img.convert("RGB"))
         noise = np.random.rand(img_array.shape[0], img_array.shape[1])
