@@ -74,7 +74,7 @@ class EditorFotoApp:
         self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
+        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata.", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
         left_holder = ttk.Frame(main_frame, width=240)
@@ -463,7 +463,7 @@ class EditorFotoApp:
             
         elif mod == "BRUSH":
             self.nume_filtru_brush = nume_filtru
-            self.lbl_status.config(text=f"Pensula incarcata cu: {nume_filtru}. Poti desena.")
+            self.lbl_status.config(text=f"Pensula incarcata cu: {nume_filtru}")
 
     def actualizeaza_afisaj(self):
         if self.imagine_curenta:
