@@ -52,6 +52,16 @@ class EditorFotoApp:
         self.root.bind("<Control-equal>", self.mareste_brush) 
         self.root.bind("<Control-plus>", self.mareste_brush)
 
+        # Normal ca acestea 2 nu merg pe Windows si trebuie cele de sus
+        # pt ca imbina +/- normale cu cele de pe keypad ......
+        # O mizerie de OS !!!!!!!!!
+
+        # Am vrut sa fac +/- pentru slidere diferinte in functie de tasta normala
+        # sau cea de pe keypad, dar normal ca pe Windows dau acelasi semnal
+        # Un gunoi de OS !!!!!
+        self.root.bind("<Control-Key-KP_Add>", self.mareste_brush)
+        self.root.bind("<Control-Key-KP_Subtract>", self.micsoreaza_brush)
+
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
 
         self.root.bind("<Control-Left>", lambda e: self.roteste_imagine(90))
