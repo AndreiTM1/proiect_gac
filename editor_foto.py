@@ -68,6 +68,9 @@ class EditorFotoApp:
         self.root.bind("<Control-b>", lambda e: self.mod_lucru.set("BRUSH"))
         self.root.bind("<Control-g>", lambda e: self.mod_lucru.set("GLOBAL"))
         self.root.bind("<Control-n>", lambda e: self.mod_lucru.set("SELECTIE"))
+
+        self.root.bind("<B>", lambda e: self.proceseaza_actiune_filtru("Blur"))
+        self.root.bind("<G>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
         
         # Scurtaturi pentru Undo si Redo
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
@@ -164,7 +167,7 @@ class EditorFotoApp:
         self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
 
         self.var_resize = tk.BooleanVar(value=False)
-        self.chk_resize = ttk.Checkbutton(self.frame_transformare, text="Dimensiuni (Resize)", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
+        self.chk_resize = ttk.Checkbutton(self.frame_transformare, text="Resize", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
         self.chk_resize.pack(fill=tk.X, pady=5)
 
         self.frame_resize = ttk.Frame(self.frame_transformare)
