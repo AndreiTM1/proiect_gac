@@ -43,6 +43,7 @@ class EditorFotoApp:
         self.filtre_globale_active = [] 
         self.btn_filtre = {}            
         self.slider_timer = None        
+        self.reset_allowed = False      
         
         self.creare_interfata()
         self.setari_scurtaturi()
@@ -60,7 +61,7 @@ class EditorFotoApp:
 
     def get_functii_filtre(self):
         return {
-            "Alb-Negru": lambda img: img.convert("L"),
+            "Grayscale": lambda img: img.convert("L"),
             "Negativare": self.logica_negativ,
             "Binarizare": lambda img: self.logica_binarizare(img, int(self.slider_prag.get())),
             "Chromatic Abr.": lambda img: self.logica_aberration(img, int(self.slider_aberration.get())),
@@ -88,6 +89,9 @@ class EditorFotoApp:
 
         self.btn_redo = ttk.Button(top_frame, text="↪ Redo", command=self.actiune_redo, state=tk.DISABLED)
         self.btn_redo.pack(side=tk.LEFT, padx=5)
+
+        self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
+        self.btn_reset.pack(side=tk.LEFT, padx=(20, 5))
 
         self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
@@ -199,7 +203,7 @@ class EditorFotoApp:
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         # BUTOANE FILTRE
-        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper"]
+        lista_filtre = ["Grayscale", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper"]
         
         for nume in lista_filtre:
             btn = ttk.Button(self.left_frame, text=nume, state=tk.DISABLED, 
@@ -208,9 +212,6 @@ class EditorFotoApp:
             self.btn_filtre[nume] = btn
 
         ttk.Frame(self.left_frame).pack(expand=True)
-
-        self.btn_reset = ttk.Button(self.left_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
-        self.btn_reset.pack(fill=tk.X, pady=(10, 0))
 
         # Zona Centrala
         display_frame = ttk.Frame(main_frame, relief=tk.SUNKEN)
@@ -291,6 +292,7 @@ class EditorFotoApp:
             if len(self.istoric_undo) > 15:
                 self.istoric_undo.pop(0)
             self.istoric_redo.clear() 
+            self.reset_allowed = True
             self.actualizeaza_butoane_undo_redo()
 
     def actiune_undo(self):
@@ -322,6 +324,7 @@ class EditorFotoApp:
     # --- ACTIUNI ROTIRE SI RESIZE (SMART OBJECT) ---
     def roteste_imagine(self, unghi):
         if not self.imagine_baza: return
+        self.reset_allowed = True
         if unghi == 90:
             self.imagine_baza = self.imagine_baza.transpose(Image.ROTATE_90)
             self.imagine_originala = self.imagine_originala.transpose(Image.ROTATE_90)
@@ -383,6 +386,7 @@ class EditorFotoApp:
                     resample_filter = Image.LANCZOS
                     
                 self.imagine_baza = self.imagine_originala.resize((new_w, new_h), resample_filter)
+                self.reset_allowed = True
                 
                 scale_curent = new_w / self.imagine_originala.width
                 scale_curent = max(0.5, min(3.0, scale_curent))
@@ -457,6 +461,7 @@ class EditorFotoApp:
                 
                 self.istoric_undo.clear()
                 self.istoric_redo.clear()
+                self.reset_allowed = True
                 
                 for nume, btn in self.btn_filtre.items():
                     btn.config(text=nume)
@@ -504,15 +509,16 @@ class EditorFotoApp:
                     messagebox.showerror("Eroare", f"Nu s-a putut salva imaginea:\n{e}")
 
     def reseteaza_imagine(self):
+        if not self.reset_allowed:
+            return
         if self.imagine_absolut_originala:
+            self.salveaza_stare_undo()
             self.imagine_originala = self.imagine_absolut_originala.copy()
             self.imagine_baza = self.imagine_originala.copy()
+            self.reset_allowed = False
             
             self.filtre_globale_active.clear()
             self.imagine_baza_filtrata_brush = None
-            
-            self.istoric_undo.clear()
-            self.istoric_redo.clear()
             
             for nume, btn in self.btn_filtre.items():
                 btn.config(text=nume)
@@ -553,6 +559,7 @@ class EditorFotoApp:
                 self.filtre_globale_active.append(nume_filtru)
                 self.btn_filtre[nume_filtru].config(text=f"* {nume_filtru}")
             
+            self.reset_allowed = True
             self.recalculeaza_imagine_globala()
             
         elif mod == "SELECTIE" and self.selectie_curenta:
