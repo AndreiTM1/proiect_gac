@@ -49,11 +49,10 @@ class EditorFotoApp:
         self.setari_scurtaturi()
 
     def setari_scurtaturi(self):
-        self.root.bind("<Control-plus>", self.mareste_brush)
         self.root.bind("<Control-equal>", self.mareste_brush) 
+        self.root.bind("<Control-plus>", self.mareste_brush)
+
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
-        self.root.bind("<Control-KP_Add>", self.mareste_brush)
-        self.root.bind("<Control-KP_Subtract>", self.micsoreaza_brush)
 
         self.root.bind("<Control-Left>", lambda e: self.roteste_imagine(90))
         self.root.bind("<Control-Right>", lambda e: self.roteste_imagine(270))
@@ -69,9 +68,15 @@ class EditorFotoApp:
         self.root.bind("<Control-g>", lambda e: self.mod_lucru.set("GLOBAL"))
         self.root.bind("<Control-n>", lambda e: self.mod_lucru.set("SELECTIE"))
 
-        self.root.bind("<B>", lambda e: self.proceseaza_actiune_filtru("Blur"))
-        self.root.bind("<G>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
-        
+        self.root.bind("<Control-Key-1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
+        self.root.bind("<Control-Key-2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
+        self.root.bind("<Control-Key-3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
+        self.root.bind("<Control-Key-4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
+        self.root.bind("<Control-Key-5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
+        self.root.bind("<Control-Key-6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
+        self.root.bind("<Control-Key-7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
+
+
         # Scurtaturi pentru Undo si Redo
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
         self.root.bind("<Control-y>", lambda e: self.actiune_redo())
@@ -610,7 +615,7 @@ class EditorFotoApp:
     def actualizeaza_afisaj(self):
         if self.imagine_curenta:
             img_afisare = self.imagine_curenta.copy()
-            img_afisare.thumbnail((800, 650))
+            img_afisare.thumbnail((1280, 720))
             
             self.afisaj_w = img_afisare.width
             self.afisaj_h = img_afisare.height
@@ -744,27 +749,35 @@ class EditorFotoApp:
     def deschide_wiki_scurtaturi(self):
         fereastra_wiki = tk.Toplevel(self.root)
         fereastra_wiki.title("Wiki Scurtături")
-        fereastra_wiki.geometry("400x350")
+        fereastra_wiki.geometry("450x350")
         
         fereastra_wiki.transient(self.root)
         
         text_wiki = tk.Text(fereastra_wiki, wrap=tk.WORD, font=("Helvetica", 10), padx=15, pady=15, bg="#f9f9f9")
         text_wiki.pack(expand=True, fill=tk.BOTH)
         
-        continut = """ 
-        Scurtături de la tastatură:
-        - Ctrl + O: Deschide o imagine
-        - Ctrl + S: Salvează imaginea curentă
-        - Ctrl + Z: Undo
-        - Ctrl + Y: Redo
-        - Ctrl + R: Reset imagine
-        - Ctrl + +: Mărește dimensiunea pensulei
-        - Ctrl + -: Micșorează dimensiunea pensulei
+        continut = """
+        Comenzi:                                           
+        - Ctrl + O: Deschide o imagine                         
+        - Ctrl + S: Salvează imaginea curentă                 
+        - Ctrl + Z: Undo                                      
+        - Ctrl + Y: Redo                                       
+        - Ctrl + R: Reset imagine                              
+        - Ctrl + +: Mărește dimensiunea pensulei              
+        - Ctrl + -: Micșorează dimensiunea pensulei            
         - Ctrl + G: Mod Global
         - Ctrl + N: Mod Selecție
         - Ctrl + B: Mod Pensulă
-        - Ctrl + Left: Rotire ↺
-        - Ctrl + Right: Rotire ↻"""
+        - Ctrl + Left: Rotire stanga
+        - Ctrl + Right: Rotire dreapta\n
+        Filtre:
+        - Ctrl + 1: Grayscale
+        - Ctrl + 2: Negativare
+        - Ctrl + 3: Binarizare
+        - Ctrl + 4: Chromatic Aberration
+        - Ctrl + 5: Blur
+        - Ctrl + 6: Canny Edge Detection
+        - Ctrl + 7: Sare și Piper"""
 
         text_wiki.insert(tk.END, continut.strip())
         text_wiki.config(state=tk.DISABLED)
