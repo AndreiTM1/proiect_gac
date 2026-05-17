@@ -54,6 +54,20 @@ class EditorFotoApp:
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
         self.root.bind("<Control-KP_Add>", self.mareste_brush)
         self.root.bind("<Control-KP_Subtract>", self.micsoreaza_brush)
+
+        self.root.bind("<Control-Left>", lambda e: self.roteste_imagine(90))
+        self.root.bind("<Control-Right>", lambda e: self.roteste_imagine(270))
+
+        self.root.bind("<Control-s>", lambda e: self.salveaza_imagine()) 
+        self.root.bind("<Control-o>", lambda e: self.deschide_imagine()) 
+
+        self.root.bind("<Control-r>", lambda e: self.reseteaza_imagine()) 
+
+        self.root.bind("<Control-w>", lambda e: self.deschide_wiki_scurtaturi()) 
+
+        self.root.bind("<Control-b>", lambda e: self.mod_lucru.set("BRUSH"))
+        self.root.bind("<Control-g>", lambda e: self.mod_lucru.set("GLOBAL"))
+        self.root.bind("<Control-n>", lambda e: self.mod_lucru.set("SELECTIE"))
         
         # Scurtaturi pentru Undo si Redo
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
@@ -77,10 +91,10 @@ class EditorFotoApp:
         top_frame = ttk.Frame(main_frame, padding="5", relief=tk.GROOVE)
         top_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
 
-        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", command=self.deschide_imagine)
+        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", underline = 10, command=self.deschide_imagine)
         self.btn_deschide.pack(side=tk.LEFT, padx=5)
 
-        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", command=self.salveaza_imagine, state=tk.DISABLED)
+        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", underline = 0, command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
         
         # --- BUTOANE NOI UNDO SI REDO ---
@@ -90,10 +104,10 @@ class EditorFotoApp:
         self.btn_redo = ttk.Button(top_frame, text="↪ Redo", command=self.actiune_redo, state=tk.DISABLED)
         self.btn_redo.pack(side=tk.LEFT, padx=5)
 
-        self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
+        self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", underline = 0, command=self.reseteaza_imagine, state=tk.DISABLED)
         self.btn_reset.pack(side=tk.LEFT, padx=(20, 5))
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
+        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata", foreground="gray")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
         left_holder = ttk.Frame(main_frame, width=240)
@@ -122,13 +136,13 @@ class EditorFotoApp:
         ttk.Label(self.left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
         self.mod_lucru = tk.StringVar(value="GLOBAL")
         
-        ttk.Radiobutton(self.left_frame, text="Pe toata poza (Toggle)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Pe selectie", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Pensula (Brush)", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Global", underline = 0, variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Selection", underline = 8, variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Brush",underline = 0, variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
         
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        ttk.Label(self.left_frame, text="Marime Pensula (Ctrl +/-)", font=("Helvetica", 9)).pack()
+        ttk.Label(self.left_frame, text="Marime Pensula", font=("Helvetica", 9)).pack()
         self.slider_brush = ttk.Scale(self.left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL)
         self.slider_brush.pack(fill=tk.X, pady=(0, 10))
 
@@ -212,6 +226,9 @@ class EditorFotoApp:
             self.btn_filtre[nume] = btn
 
         ttk.Frame(self.left_frame).pack(expand=True)
+
+        self.btn_wiki = ttk.Button(self.left_frame, text="Wiki Scurtaturi", underline=0, command=self.deschide_wiki_scurtaturi)
+        self.btn_wiki.pack(fill=tk.X, pady=(10, 0))
 
         # Zona Centrala
         display_frame = ttk.Frame(main_frame, relief=tk.SUNKEN)
@@ -719,6 +736,35 @@ class EditorFotoApp:
         
         self.imagine_baza.paste(roi_procesat, (left, upper), mask)
         self.recalculeaza_imagine_globala()
+
+
+    def deschide_wiki_scurtaturi(self):
+        fereastra_wiki = tk.Toplevel(self.root)
+        fereastra_wiki.title("Wiki Scurtături")
+        fereastra_wiki.geometry("400x350")
+        
+        fereastra_wiki.transient(self.root)
+        
+        text_wiki = tk.Text(fereastra_wiki, wrap=tk.WORD, font=("Helvetica", 10), padx=15, pady=15, bg="#f9f9f9")
+        text_wiki.pack(expand=True, fill=tk.BOTH)
+        
+        continut = """ 
+        Scurtături de la tastatură:
+        - Ctrl + O: Deschide o imagine
+        - Ctrl + S: Salvează imaginea curentă
+        - Ctrl + Z: Undo
+        - Ctrl + Y: Redo
+        - Ctrl + R: Reset imagine
+        - Ctrl + +: Mărește dimensiunea pensulei
+        - Ctrl + -: Micșorează dimensiunea pensulei
+        - Ctrl + G: Mod Global
+        - Ctrl + N: Mod Selecție
+        - Ctrl + B: Mod Pensulă
+        - Ctrl + Left: Rotire ↺
+        - Ctrl + Right: Rotire ↻"""
+
+        text_wiki.insert(tk.END, continut.strip())
+        text_wiki.config(state=tk.DISABLED)
 
     # --- FUNCTII FILTRE MATEMATICE INDIVIDUALE ---
 
