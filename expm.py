@@ -1,29 +1,30 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from PIL import Image, ImageTk, ImageOps, ImageDraw, ImageFilter
+from PIL import Image, ImageTk, ImageOps, ImageDraw, ImageFilter, ImageEnhance
 import cv2
 import numpy as np
+from collections import deque
 
 class EditorFotoApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Editor Foto - Neactivat 25 Zile Ramase")
-        self.root.geometry("1600x900")
+        self.root.title("📸 Photo Editor Pro")
+        self.root.geometry("1800x950")
         
         self.style = ttk.Style()
-        if "clam" in self.style.theme_names():
-            self.style.theme_use("clam")
-
-        # ARHITECTURA NOUA DE IMAGINI
-        self.imagine_absolut_originala = None 
-        self.imagine_originala = None         
-        self.imagine_baza = None              
-        self.imagine_curenta = None           
-        self.tk_imagine = None
+        self._configurare_tema()
         
-        # Stive pentru Undo / Redo
-        self.istoric_undo = []
-        self.istoric_redo = []
+        # Undo/Redo History
+        self.history = deque(maxlen=10)
+        self.redo_stack = deque(maxlen=10)
+
+        # ARHITECTURA NOUA DE IMAGINI (Smart Object)
+        self.imagine_absolut_originala = None # Clona 100% pura, folosita pentru Reset
+        self.imagine_originala = None         # Clona de inalta rezolutie folosita ca sursa pentru Resize
+        self.imagine_baza = None              # Imaginea de lucru
+        self.imagine_curenta = None           # Imaginea afisata
+        self.tk_imagine = None
+        self.cale_fisier_curent = None
         
         # Variabile desenare
         self.rect_id = None
@@ -32,6 +33,7 @@ class EditorFotoApp:
         self.selectie_curenta = None
         self.afisaj_w = 1
         self.afisaj_h = 1
+        self.zoom_level = 1.0
 
         # Variabile Pensula si Globale
         self.nume_filtru_brush = None
@@ -42,10 +44,51 @@ class EditorFotoApp:
         
         self.filtre_globale_active = [] 
         self.btn_filtre = {}            
-        self.slider_timer = None        
+        self.slider_timer = None
+        
+        # Variabile pentru controlele avansate
+        self.brightness_val = tk.DoubleVar(value=1.0)
+        self.contrast_val = tk.DoubleVar(value=1.0)
+        self.saturation_val = tk.DoubleVar(value=1.0)
         
         self.creare_interfata()
         self.setari_scurtaturi()
+    
+    def _configurare_tema(self):
+        """Configureaza o tema moderna si profesionala"""
+        if "clam" in self.style.theme_names():
+            self.style.theme_use("clam")
+        
+        # Culori profesionale
+        bg_dark = "#ffffff"
+        bg_medium = "#2d2d2d"
+        bg_light = "#3d3d3d"
+        accent_color = "#0078d4"
+        text_primary = "#000000"
+        text_secondary = "#000000"
+        
+        # Configurare Framework
+        self.style.configure("TFrame", background=bg_dark)
+        self.style.configure("TLabel", background=bg_dark, foreground=text_primary, font=("Segoe UI", 9))
+        self.style.configure("TButton", font=("Segoe UI", 9, "bold"), padding=6)
+        self.style.configure("TCheckbutton", background=bg_dark, foreground=text_primary, font=("Segoe UI", 9))
+        self.style.configure("TRadiobutton", background=bg_dark, foreground=text_primary, font=("Segoe UI", 9))
+        self.style.configure("TScale", background=bg_dark)
+        
+        # Tema pentru butoane
+        self.style.map("TButton",
+            background=[("active", accent_color), ("pressed", "#005a9e")],
+            foreground=[("active", text_primary), ("pressed", text_primary)]
+        )
+        
+        # Separator color
+        self.style.configure("TSeparator", background=bg_light)
+        
+        # Label pentru titluri
+        self.style.configure("Title.TLabel", font=("Segoe UI", 11, "bold"), foreground=accent_color)
+        self.style.configure("Subtitle.TLabel", font=("Segoe UI", 10, "bold"), foreground=text_secondary)
+        
+        self.root.configure(bg=bg_dark)
 
     def setari_scurtaturi(self):
         self.root.bind("<Control-plus>", self.mareste_brush)
@@ -53,10 +96,10 @@ class EditorFotoApp:
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
         self.root.bind("<Control-KP_Add>", self.mareste_brush)
         self.root.bind("<Control-KP_Subtract>", self.micsoreaza_brush)
-        
-        # Scurtaturi pentru Undo si Redo
-        self.root.bind("<Control-z>", lambda e: self.actiune_undo())
-        self.root.bind("<Control-y>", lambda e: self.actiune_redo())
+        self.root.bind("<Control-z>", lambda e: self.undo())
+        self.root.bind("<Control-y>", lambda e: self.redo())
+        self.root.bind("<Control-o>", lambda e: self.deschide_imagine())
+        self.root.bind("<Control-s>", lambda e: self.salveaza_imagine())
 
     def get_functii_filtre(self):
         return {
@@ -66,48 +109,76 @@ class EditorFotoApp:
             "Chromatic Abr.": lambda img: self.logica_aberration(img, int(self.slider_aberration.get())),
             "Blur": lambda img: img.filter(ImageFilter.GaussianBlur(radius=self.slider_blur.get())),
             "Canny Edge": self.logica_canny,
-            "Sare si Piper": self.logica_sare_piper
+            "Sare si Piper": self.logica_sare_piper,
+            "Strălucire": lambda img: self._aplica_brightness(img, self.brightness_val.get()),
+            "Contrast": lambda img: self._aplica_contrast(img, self.contrast_val.get()),
+            "Saturație": lambda img: self._aplica_saturation(img, self.saturation_val.get()),
         }
+    
+    def _aplica_brightness(self, img, factor):
+        """Aplică ajustare de strălucire"""
+        enhancer = ImageEnhance.Brightness(img)
+        return enhancer.enhance(factor)
+    
+    def _aplica_contrast(self, img, factor):
+        """Aplică ajustare de contrast"""
+        enhancer = ImageEnhance.Contrast(img)
+        return enhancer.enhance(factor)
+    
+    def _aplica_saturation(self, img, factor):
+        """Aplică ajustare de saturație"""
+        if img.mode == "L":  # Grayscale nu are saturație
+            return img
+        enhancer = ImageEnhance.Color(img)
+        return enhancer.enhance(factor)
 
     def creare_interfata(self):
-        main_frame = ttk.Frame(self.root, padding="10")
+        """Crează interfața grafică modernă și profesională"""
+        main_frame = ttk.Frame(self.root, padding="8")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        top_frame = ttk.Frame(main_frame, padding="5", relief=tk.GROOVE)
-        top_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
+        # ===== TOOLBAR TOP (Acțiuni Principale) =====
+        toolbar = ttk.Frame(main_frame, relief=tk.FLAT)
+        toolbar.pack(side=tk.TOP, fill=tk.X, pady=(0, 8))
 
-        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", command=self.deschide_imagine)
-        self.btn_deschide.pack(side=tk.LEFT, padx=5)
+        self.btn_deschide = ttk.Button(toolbar, text="🗂 Deschide (Ctrl+O)", command=self.deschide_imagine, width=20)
+        self.btn_deschide.pack(side=tk.LEFT, padx=3)
 
-        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", command=self.salveaza_imagine, state=tk.DISABLED)
-        self.btn_salveaza.pack(side=tk.LEFT, padx=5)
-        
-        # --- BUTOANE NOI UNDO SI REDO ---
-        self.btn_undo = ttk.Button(top_frame, text="↩ Undo", command=self.actiune_undo, state=tk.DISABLED)
-        self.btn_undo.pack(side=tk.LEFT, padx=(20, 5))
+        self.btn_salveaza = ttk.Button(toolbar, text="💾 Salvează (Ctrl+S)", command=self.salveaza_imagine, state=tk.DISABLED, width=20)
+        self.btn_salveaza.pack(side=tk.LEFT, padx=3)
 
-        self.btn_redo = ttk.Button(top_frame, text="↪ Redo", command=self.actiune_redo, state=tk.DISABLED)
-        self.btn_redo.pack(side=tk.LEFT, padx=5)
+        self.btn_undo = ttk.Button(toolbar, text="↶ Undo (Ctrl+Z)", command=self.undo, state=tk.DISABLED, width=15)
+        self.btn_undo.pack(side=tk.LEFT, padx=3)
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata. Poti muta imaginea cu Click Dreapta.", foreground="gray")
+        self.btn_redo = ttk.Button(toolbar, text="↷ Redo (Ctrl+Y)", command=self.redo, state=tk.DISABLED, width=15)
+        self.btn_redo.pack(side=tk.LEFT, padx=3)
+
+        self.btn_reset = ttk.Button(toolbar, text="🔄 Reset", command=self.reseteaza_imagine, state=tk.DISABLED, width=12)
+        self.btn_reset.pack(side=tk.LEFT, padx=3)
+
+        # Status bar
+        self.lbl_status = ttk.Label(toolbar, text="⏳ Nicio imagine încărcată", foreground="#b0b0b0")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
-        left_holder = ttk.Frame(main_frame, width=240)
-        left_holder.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        # ===== MAIN CONTENT AREA =====
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.left_canvas = tk.Canvas(left_holder, width=240, highlightthickness=0)
+        # ===== LEFT PANEL (Controale) =====
+        left_holder = ttk.Frame(content_frame, width=280)
+        left_holder.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 8))
+
+        # Scrollable panel
+        self.left_canvas = tk.Canvas(left_holder, width=280, highlightthickness=0, bg="#1e1e1e")
         self.left_scrollbar = ttk.Scrollbar(left_holder, orient=tk.VERTICAL, command=self.left_canvas.yview)
         self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
         self.left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self.left_frame = ttk.Frame(self.left_canvas, width=240, padding="10", relief=tk.RIDGE)
+        self.left_frame = ttk.Frame(self.left_canvas, width=280, padding="12")
         self.left_window_id = self.left_canvas.create_window((0, 0), window=self.left_frame, anchor="nw")
         
-        self.left_frame.bind(
-            "<Configure>",
-            lambda e: (self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all")), self._update_left_scrollbar_visibility())
-        )
-        
+        self.left_frame.bind("<Configure>",
+            lambda e: (self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all")), self._update_left_scrollbar_visibility()))
         self.left_canvas.bind("<Configure>", self._on_canvas_configure)
         self.root.after(0, self._update_left_scrollbar_visibility)
 
@@ -115,91 +186,94 @@ class EditorFotoApp:
         self.root.bind_all("<Button-4>", self._on_left_mousewheel)
         self.root.bind_all("<Button-5>", self._on_left_mousewheel)
 
-        ttk.Label(self.left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
+        # --- Mod de lucru ---
+        ttk.Label(self.left_frame, text="▶ Mod de Lucru", style="Title.TLabel").pack(fill=tk.X, pady=(0, 8))
         self.mod_lucru = tk.StringVar(value="GLOBAL")
         
-        ttk.Radiobutton(self.left_frame, text="Pe toata poza (Toggle)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Pe selectie", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Pensula (Brush)", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
-        
+        ttk.Radiobutton(self.left_frame, text="🌍 Global (Toată poza)", variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X, pady=2)
+        ttk.Radiobutton(self.left_frame, text="📐 Selecție", variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X, pady=2)
+        ttk.Radiobutton(self.left_frame, text="🖌 Pensula", variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X, pady=2)
+
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        ttk.Label(self.left_frame, text="Marime Pensula (Ctrl +/-)", font=("Helvetica", 9)).pack()
-        self.slider_brush = ttk.Scale(self.left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL)
+        # --- Pensula ---
+        ttk.Label(self.left_frame, text="🖌 Dimensiune Pensula", style="Title.TLabel").pack(fill=tk.X, pady=(0, 5))
+        self.lbl_brush_size = ttk.Label(self.left_frame, text="30 px")
+        self.lbl_brush_size.pack(anchor=tk.E)
+        self.dim_brush.trace("w", lambda *args: self.lbl_brush_size.config(text=f"{self.dim_brush.get()} px"))
+        self.slider_brush = ttk.Scale(self.left_frame, from_=5, to=150, variable=self.dim_brush, orient=tk.HORIZONTAL, command=lambda *a: None)
         self.slider_brush.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        # SECTIUNEA TRANSFORMARE
-        self.frame_transformare = ttk.Frame(self.left_frame)
-        self.frame_transformare.pack(fill=tk.X, pady=0)
-        
-        ttk.Label(self.frame_transformare, text="Transformare", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
+        # --- Transformare ---
+        ttk.Label(self.left_frame, text="🔀 Transformare", style="Title.TLabel").pack(fill=tk.X, pady=(0, 8))
 
-        btn_rot_frame = ttk.Frame(self.frame_transformare)
-        btn_rot_frame.pack(fill=tk.X, pady=2)
-        
-        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire ↺", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
-        self.btn_rot_ccw.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
-
-        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire ↻", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
-        self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
+        rot_frame = ttk.Frame(self.left_frame)
+        rot_frame.pack(fill=tk.X, pady=4)
+        self.btn_rot_ccw = ttk.Button(rot_frame, text="Rotire ↺ 90°", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
+        self.btn_rot_ccw.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
+        self.btn_rot_cw = ttk.Button(rot_frame, text="Rotire ↻ 270°", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
+        self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X)
 
         self.var_resize = tk.BooleanVar(value=False)
-        self.chk_resize = ttk.Checkbutton(self.frame_transformare, text="Dimensiuni (Resize)", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
-        self.chk_resize.pack(fill=tk.X, pady=5)
+        self.chk_resize = ttk.Checkbutton(self.left_frame, text="📏 Redimensionare", variable=self.var_resize, command=self.toggle_resize_ui, state=tk.DISABLED)
+        self.chk_resize.pack(fill=tk.X, pady=(8, 0))
 
-        self.frame_resize = ttk.Frame(self.frame_transformare)
+        self.frame_resize = ttk.Frame(self.left_frame)
+        resize_inner = ttk.Frame(self.frame_resize)
+        resize_inner.pack(fill=tk.X)
         
-        # Row 1: Setari manuale W si H
-        frame_wh = ttk.Frame(self.frame_resize)
-        frame_wh.pack(fill=tk.X, pady=2)
-        
-        lbl_w = ttk.Label(frame_wh, text="W:")
-        lbl_w.pack(side=tk.LEFT, padx=2)
-        self.entry_w = ttk.Entry(frame_wh, width=5)
+        ttk.Label(resize_inner, text="L:").pack(side=tk.LEFT, padx=2)
+        self.entry_w = ttk.Entry(resize_inner, width=6)
         self.entry_w.pack(side=tk.LEFT, padx=2)
 
-        lbl_h = ttk.Label(frame_wh, text="H:")
-        lbl_h.pack(side=tk.LEFT, padx=2)
-        self.entry_h = ttk.Entry(frame_wh, width=5)
+        ttk.Label(resize_inner, text="H:").pack(side=tk.LEFT, padx=2)
+        self.entry_h = ttk.Entry(resize_inner, width=6)
         self.entry_h.pack(side=tk.LEFT, padx=2)
 
-        self.btn_aplica_resize = ttk.Button(frame_wh, text="Aplica", command=self.aplica_resize)
+        self.btn_aplica_resize = ttk.Button(resize_inner, text="✓", command=self.aplica_resize, width=3)
         self.btn_aplica_resize.pack(side=tk.LEFT, padx=4)
 
-        # Row 2: Slide pentru Scale
-        self.lbl_scale = ttk.Label(self.frame_resize, text="Scale: 1.00x", font=("Helvetica", 9))
-        self.lbl_scale.pack(anchor=tk.W, pady=(5, 0))
-        
-        self.slider_scale = ttk.Scale(self.frame_resize, from_=0.5, to=3.0, orient=tk.HORIZONTAL, command=self.on_scale_change)
-        self.slider_scale.set(1.0)
-        self.slider_scale.pack(fill=tk.X, pady=(0, 5))
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        # --- Ajustări Avansate ---
+        ttk.Label(self.left_frame, text="⚙ Ajustări Avansate", style="Title.TLabel").pack(fill=tk.X, pady=(0, 8))
 
-        # SECTIUNEA FILTRE
-        ttk.Label(self.left_frame, text="Setari Filtre", font=("Helvetica", 11, "bold")).pack(pady=(5, 5))
+        ttk.Label(self.left_frame, text="Strălucire", style="Subtitle.TLabel").pack(anchor=tk.W)
+        ttk.Scale(self.left_frame, from_=0.5, to=2.0, variable=self.brightness_val, orient=tk.HORIZONTAL, command=self.on_slider_change).pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(self.left_frame, text="Binarizare (Prag)", font=("Helvetica", 9)).pack()
+        ttk.Label(self.left_frame, text="Contrast", style="Subtitle.TLabel").pack(anchor=tk.W)
+        ttk.Scale(self.left_frame, from_=0.5, to=2.0, variable=self.contrast_val, orient=tk.HORIZONTAL, command=self.on_slider_change).pack(fill=tk.X, pady=(0, 8))
+
+        ttk.Label(self.left_frame, text="Saturație", style="Subtitle.TLabel").pack(anchor=tk.W)
+        ttk.Scale(self.left_frame, from_=0.0, to=2.0, variable=self.saturation_val, orient=tk.HORIZONTAL, command=self.on_slider_change).pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        # --- Setări Filtre ---
+        ttk.Label(self.left_frame, text="🎨 Setări Filtre", style="Title.TLabel").pack(fill=tk.X, pady=(0, 8))
+
+        ttk.Label(self.left_frame, text="Binarizare - Prag", style="Subtitle.TLabel").pack(anchor=tk.W)
         self.slider_prag = ttk.Scale(self.left_frame, from_=0, to=255, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_prag.set(128)
-        self.slider_prag.pack(fill=tk.X, pady=(0, 5))
+        self.slider_prag.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(self.left_frame, text="Aberration (Intensitate)", font=("Helvetica", 9)).pack()
+        ttk.Label(self.left_frame, text="Chromatic Aberration", style="Subtitle.TLabel").pack(anchor=tk.W)
         self.slider_aberration = ttk.Scale(self.left_frame, from_=0, to=30, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_aberration.set(10)
-        self.slider_aberration.pack(fill=tk.X, pady=(0, 10))
+        self.slider_aberration.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(self.left_frame, text="Blur (Radius)", font=("Helvetica", 9)).pack()
+        ttk.Label(self.left_frame, text="Blur - Radius", style="Subtitle.TLabel").pack(anchor=tk.W)
         self.slider_blur = ttk.Scale(self.left_frame, from_=0, to=10, orient=tk.HORIZONTAL, command=self.on_slider_change)
         self.slider_blur.set(2)
         self.slider_blur.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
-        # BUTOANE FILTRE
-        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper"]
+        # --- Butoane Filtre ---
+        ttk.Label(self.left_frame, text="✨ Filtre", style="Title.TLabel").pack(fill=tk.X, pady=(0, 8))
+        lista_filtre = ["Alb-Negru", "Negativare", "Binarizare", "Chromatic Abr.", "Blur", "Canny Edge", "Sare si Piper", "Strălucire", "Contrast", "Saturație"]
         
         for nume in lista_filtre:
             btn = ttk.Button(self.left_frame, text=nume, state=tk.DISABLED, 
@@ -209,14 +283,11 @@ class EditorFotoApp:
 
         ttk.Frame(self.left_frame).pack(expand=True)
 
-        self.btn_reset = ttk.Button(self.left_frame, text="Resetare Imagine", command=self.reseteaza_imagine, state=tk.DISABLED)
-        self.btn_reset.pack(fill=tk.X, pady=(10, 0))
-
-        # Zona Centrala
-        display_frame = ttk.Frame(main_frame, relief=tk.SUNKEN)
+        # ===== CENTRAL CANVAS AREA =====
+        display_frame = ttk.Frame(content_frame, relief=tk.SUNKEN, borderwidth=2)
         display_frame.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH)
 
-        self.canvas_imagine = tk.Canvas(display_frame, bg="#2e2e2e", cursor="cross")
+        self.canvas_imagine = tk.Canvas(display_frame, bg="#1a1a1a", cursor="crosshair")
         self.canvas_imagine.pack(expand=True, fill=tk.BOTH)
 
         self.canvas_imagine.bind("<ButtonPress-1>", self.on_mouse_press)
@@ -229,21 +300,6 @@ class EditorFotoApp:
         self.canvas_imagine.bind("<B2-Motion>", self.do_pan)
         self.canvas_imagine.bind("<ButtonPress-3>", self.start_pan)
         self.canvas_imagine.bind("<B3-Motion>", self.do_pan)
-
-    def actualizeaza_layout_stanga(self):
-        # Fortam interfata sa isi aplice geometria imediat
-        self.left_frame.update_idletasks()
-        
-        req_height = self.left_frame.winfo_reqheight()
-        canvas_height = self.left_canvas.winfo_height()
-        
-        # Mărim interiorul Canvasului dacă e nevoie de mai mult spațiu
-        noua_inaltime = max(req_height, canvas_height)
-        self.left_canvas.itemconfig(self.left_window_id, height=noua_inaltime)
-        
-        # Recalculăm scroll-ul
-        self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
-        self._update_left_scrollbar_visibility()
 
     def _on_canvas_configure(self, event):
         self.left_canvas.itemconfig(self.left_window_id, width=event.width)
@@ -284,44 +340,11 @@ class EditorFotoApp:
             if self.left_scrollbar.winfo_ismapped():
                 self.left_scrollbar.pack_forget()
 
-    # --- LOGICA UNDO / REDO ---
-    def salveaza_stare_undo(self):
-        if self.imagine_baza:
-            self.istoric_undo.append(self.imagine_baza.copy())
-            if len(self.istoric_undo) > 15:
-                self.istoric_undo.pop(0)
-            self.istoric_redo.clear() 
-            self.actualizeaza_butoane_undo_redo()
-
-    def actiune_undo(self):
-        if self.mod_lucru.get() == "GLOBAL" or not self.istoric_undo: return
-        
-        self.istoric_redo.append(self.imagine_baza.copy())
-        self.imagine_baza = self.istoric_undo.pop()
-        
-        self.recalculeaza_imagine_globala()
-        self.actualizeaza_butoane_undo_redo()
-
-    def actiune_redo(self):
-        if self.mod_lucru.get() == "GLOBAL" or not self.istoric_redo: return
-        
-        self.istoric_undo.append(self.imagine_baza.copy())
-        self.imagine_baza = self.istoric_redo.pop()
-        
-        self.recalculeaza_imagine_globala()
-        self.actualizeaza_butoane_undo_redo()
-
-    def actualizeaza_butoane_undo_redo(self):
-        if self.mod_lucru.get() == "GLOBAL" or not self.imagine_baza:
-            self.btn_undo.config(state=tk.DISABLED)
-            self.btn_redo.config(state=tk.DISABLED)
-        else:
-            self.btn_undo.config(state=tk.NORMAL if self.istoric_undo else tk.DISABLED)
-            self.btn_redo.config(state=tk.NORMAL if self.istoric_redo else tk.DISABLED)
-
     # --- ACTIUNI ROTIRE SI RESIZE (SMART OBJECT) ---
     def roteste_imagine(self, unghi):
         if not self.imagine_baza: return
+        self._save_to_history()
+        # Rotim atat imaginea de lucru cat si sursa de rezolutie inalta
         if unghi == 90:
             self.imagine_baza = self.imagine_baza.transpose(Image.ROTATE_90)
             self.imagine_originala = self.imagine_originala.transpose(Image.ROTATE_90)
@@ -332,47 +355,26 @@ class EditorFotoApp:
         self.sterge_selectia_vizuala()
         self.recalculeaza_imagine_globala()
         
-        if self.var_resize.get() and self.imagine_originala:
-            scale_curent = self.imagine_baza.width / self.imagine_originala.width
-            self.slider_scale.set(scale_curent)
-            self.lbl_scale.config(text=f"Scale: {scale_curent:.2f}x")
+        if self.var_resize.get():
             self.entry_w.delete(0, tk.END)
             self.entry_w.insert(0, str(self.imagine_baza.width))
             self.entry_h.delete(0, tk.END)
             self.entry_h.insert(0, str(self.imagine_baza.height))
 
-    def on_scale_change(self, val):
-        if not self.imagine_originala: return
-        scale = float(val)
-        self.lbl_scale.config(text=f"Scale: {scale:.2f}x")
-        
-        new_w = int(self.imagine_originala.width * scale)
-        new_h = int(self.imagine_originala.height * scale)
-        
-        self.entry_w.delete(0, tk.END)
-        self.entry_w.insert(0, str(new_w))
-        self.entry_h.delete(0, tk.END)
-        self.entry_h.insert(0, str(new_h))
-
     def toggle_resize_ui(self):
         if self.var_resize.get():
             self.frame_resize.pack(fill=tk.X, pady=2)
-            if self.imagine_baza and self.imagine_originala:
-                scale_curent = self.imagine_baza.width / self.imagine_originala.width
-                self.slider_scale.set(scale_curent)
-                self.lbl_scale.config(text=f"Scale: {scale_curent:.2f}x")
+            if self.imagine_baza:
                 self.entry_w.delete(0, tk.END)
                 self.entry_w.insert(0, str(self.imagine_baza.width))
                 self.entry_h.delete(0, tk.END)
                 self.entry_h.insert(0, str(self.imagine_baza.height))
         else:
             self.frame_resize.pack_forget()
-            
-        # Apelam functia de actualizare layout dupa ce am afisat/ascuns panoul
-        self.actualizeaza_layout_stanga()
 
     def aplica_resize(self):
-        if not self.imagine_originala: return
+        if not self.imagine_baza: return
+        self._save_to_history()
         try:
             new_w = int(self.entry_w.get())
             new_h = int(self.entry_h.get())
@@ -382,12 +384,9 @@ class EditorFotoApp:
                 except AttributeError:
                     resample_filter = Image.LANCZOS
                     
+                # AICI ESTE MAGICUL: Tragem pixelii din poza originala de calitate superioara, 
+                # astfel poti mari imaginea fara sa fie taiati pixelii sau blurata!
                 self.imagine_baza = self.imagine_originala.resize((new_w, new_h), resample_filter)
-                
-                scale_curent = new_w / self.imagine_originala.width
-                scale_curent = max(0.5, min(3.0, scale_curent))
-                self.slider_scale.set(scale_curent)
-                self.lbl_scale.config(text=f"Scale: {scale_curent:.2f}x")
                 
                 self.sterge_selectia_vizuala()
                 self.recalculeaza_imagine_globala()
@@ -433,8 +432,6 @@ class EditorFotoApp:
         else:
             self.lbl_status.config(text="Mod Global: Activeaza sau dezactiveaza straturile de filtre.")
             self.activeaza_filtre()
-            
-        self.actualizeaza_butoane_undo_redo()
 
     def dezactiveaza_filtre(self):
         for btn in self.btn_filtre.values(): btn.config(state=tk.DISABLED)
@@ -443,6 +440,87 @@ class EditorFotoApp:
         if self.imagine_baza:
             for btn in self.btn_filtre.values(): btn.config(state=tk.NORMAL)
 
+    def _save_to_history(self):
+        """Salvează starea curentă în historia de undo"""
+        if self.imagine_baza:
+            state = {
+                'imagine_baza': self.imagine_baza.copy(),
+                'filtre_active': self.filtre_globale_active.copy(),
+                'brightness': self.brightness_val.get(),
+                'contrast': self.contrast_val.get(),
+                'saturation': self.saturation_val.get(),
+            }
+            self.history.append(state)
+            self.redo_stack.clear()
+            self._update_undo_redo_buttons()
+
+    def undo(self):
+        """Revine la starea anterioară"""
+        if self.history:
+            # Salvează starea curentă în redo stack
+            current_state = {
+                'imagine_baza': self.imagine_baza.copy(),
+                'filtre_active': self.filtre_globale_active.copy(),
+                'brightness': self.brightness_val.get(),
+                'contrast': self.contrast_val.get(),
+                'saturation': self.saturation_val.get(),
+            }
+            self.redo_stack.append(current_state)
+            
+            # Restaurează starea anterioară
+            state = self.history.pop()
+            self.imagine_baza = state['imagine_baza'].copy()
+            self.filtre_globale_active = list(state['filtre_active'])
+            self.brightness_val.set(state['brightness'])
+            self.contrast_val.set(state['contrast'])
+            self.saturation_val.set(state['saturation'])
+            
+            # Actualizează butoanele de filtre
+            for nume, btn in self.btn_filtre.items():
+                if nume in self.filtre_globale_active:
+                    btn.config(text=f"* {nume}")
+                else:
+                    btn.config(text=nume)
+            
+            self.recalculeaza_imagine_globala()
+            self._update_undo_redo_buttons()
+
+    def redo(self):
+        """Repetă acțiunea anulată"""
+        if self.redo_stack:
+            # Salvează starea curentă în history
+            current_state = {
+                'imagine_baza': self.imagine_baza.copy(),
+                'filtre_active': self.filtre_globale_active.copy(),
+                'brightness': self.brightness_val.get(),
+                'contrast': self.contrast_val.get(),
+                'saturation': self.saturation_val.get(),
+            }
+            self.history.append(current_state)
+            
+            # Restaurează starea din redo stack
+            state = self.redo_stack.pop()
+            self.imagine_baza = state['imagine_baza'].copy()
+            self.filtre_globale_active = list(state['filtre_active'])
+            self.brightness_val.set(state['brightness'])
+            self.contrast_val.set(state['contrast'])
+            self.saturation_val.set(state['saturation'])
+            
+            # Actualizează butoanele de filtre
+            for nume, btn in self.btn_filtre.items():
+                if nume in self.filtre_globale_active:
+                    btn.config(text=f"* {nume}")
+                else:
+                    btn.config(text=nume)
+            
+            self.recalculeaza_imagine_globala()
+            self._update_undo_redo_buttons()
+
+    def _update_undo_redo_buttons(self):
+        """Actualizează starea butoanelor Undo/Redo"""
+        self.btn_undo.config(state=tk.NORMAL if self.history else tk.DISABLED)
+        self.btn_redo.config(state=tk.NORMAL if self.redo_stack else tk.DISABLED)
+
     def deschide_imagine(self):
         cale_fisier = filedialog.askopenfilename(
             title="Alege o imagine",
@@ -450,13 +528,14 @@ class EditorFotoApp:
         )
         if cale_fisier:
             try:
+                # Salvam clona absoluta a fisierului (neatinsa de transformari sau filtre)
                 self.imagine_absolut_originala = Image.open(cale_fisier)
                 self.imagine_originala = self.imagine_absolut_originala.copy()
                 self.imagine_baza = self.imagine_originala.copy()
+                self.cale_fisier_curent = cale_fisier
                 self.filtre_globale_active.clear()
-                
-                self.istoric_undo.clear()
-                self.istoric_redo.clear()
+                self.history.clear()
+                self.redo_stack.clear()
                 
                 for nume, btn in self.btn_filtre.items():
                     btn.config(text=nume)
@@ -470,18 +549,17 @@ class EditorFotoApp:
 
                 self.schimba_mod() 
                 self.recalculeaza_imagine_globala()
-                self.actualizeaza_butoane_undo_redo()
                 
-                if self.var_resize.get() and self.imagine_originala:
-                    self.slider_scale.set(1.0)
-                    self.lbl_scale.config(text="Scale: 1.00x")
+                if self.var_resize.get():
                     self.entry_w.delete(0, tk.END)
-                    self.entry_w.insert(0, str(self.imagine_originala.width))
+                    self.entry_w.insert(0, str(self.imagine_baza.width))
                     self.entry_h.delete(0, tk.END)
-                    self.entry_h.insert(0, str(self.imagine_originala.height))
+                    self.entry_h.insert(0, str(self.imagine_baza.height))
                 
                 nume_fisier = cale_fisier.split('/')[-1]
-                self.lbl_status.config(text=f"Fisier deschis: {nume_fisier}")
+                dims = f"{self.imagine_baza.width}×{self.imagine_baza.height}"
+                self.lbl_status.config(text=f"✓ {nume_fisier} | {dims}")
+                self._update_undo_redo_buttons()
             except Exception as e:
                 messagebox.showerror("Eroare", f"Nu s-a putut deschide imaginea:\n{e}")
 
@@ -505,29 +583,25 @@ class EditorFotoApp:
 
     def reseteaza_imagine(self):
         if self.imagine_absolut_originala:
+            self._save_to_history()
+            # Acum resetul reface absolut tot (dimensiune, rotatie si calitate)
             self.imagine_originala = self.imagine_absolut_originala.copy()
             self.imagine_baza = self.imagine_originala.copy()
             
             self.filtre_globale_active.clear()
             self.imagine_baza_filtrata_brush = None
             
-            self.istoric_undo.clear()
-            self.istoric_redo.clear()
-            
             for nume, btn in self.btn_filtre.items():
                 btn.config(text=nume)
                 
             self.sterge_selectia_vizuala()
             self.recalculeaza_imagine_globala()
-            self.actualizeaza_butoane_undo_redo()
             
-            if self.var_resize.get() and self.imagine_originala:
-                self.slider_scale.set(1.0)
-                self.lbl_scale.config(text="Scale: 1.00x")
+            if self.var_resize.get():
                 self.entry_w.delete(0, tk.END)
-                self.entry_w.insert(0, str(self.imagine_originala.width))
+                self.entry_w.insert(0, str(self.imagine_baza.width))
                 self.entry_h.delete(0, tk.END)
-                self.entry_h.insert(0, str(self.imagine_originala.height))
+                self.entry_h.insert(0, str(self.imagine_baza.height))
 
     def recalculeaza_imagine_globala(self):
         if not self.imagine_baza: return
@@ -546,6 +620,7 @@ class EditorFotoApp:
         mod = self.mod_lucru.get()
 
         if mod == "GLOBAL":
+            self._save_to_history()
             if nume_filtru in self.filtre_globale_active:
                 self.filtre_globale_active.remove(nume_filtru)
                 self.btn_filtre[nume_filtru].config(text=nume_filtru)
@@ -556,6 +631,7 @@ class EditorFotoApp:
             self.recalculeaza_imagine_globala()
             
         elif mod == "SELECTIE" and self.selectie_curenta:
+            self._save_to_history()
             raport_w = self.imagine_baza.width / self.afisaj_w
             raport_h = self.imagine_baza.height / self.afisaj_h
             
@@ -570,15 +646,13 @@ class EditorFotoApp:
             if self.imagine_baza.mode != roi_procesat.mode:
                 roi_procesat = roi_procesat.convert(self.imagine_baza.mode)
                 
-            self.salveaza_stare_undo()
-            
             self.imagine_baza.paste(roi_procesat, (x1, y1))
             self.sterge_selectia_vizuala()
             self.recalculeaza_imagine_globala()
             
         elif mod == "BRUSH":
             self.nume_filtru_brush = nume_filtru
-            self.lbl_status.config(text=f"Pensula incarcata cu: {nume_filtru}")
+            self.lbl_status.config(text=f"🖌 Pensula cu: {nume_filtru}")
 
     def actualizeaza_afisaj(self):
         if self.imagine_curenta:
@@ -619,8 +693,6 @@ class EditorFotoApp:
                 self.start_x, self.start_y, self.start_x, self.start_y, outline='red', width=2, dash=(4, 4)
             )
         elif mod == "BRUSH" and self.nume_filtru_brush:
-            self.salveaza_stare_undo()
-            
             functie = self.get_functii_filtre()[self.nume_filtru_brush]
             self.imagine_baza_filtrata_brush = functie(self.imagine_baza)
             if self.imagine_baza.mode != self.imagine_baza_filtrata_brush.mode:
