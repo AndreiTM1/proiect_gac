@@ -49,10 +49,11 @@ class EditorFotoApp:
         self.setari_scurtaturi()
 
     def setari_scurtaturi(self):
-        self.root.bind("<Control-equal>", self.mareste_brush) 
+        self.root.bind("<Control-equal>", self.mareste_brush) # poate pe unele tast e diferit
         self.root.bind("<Control-plus>", self.mareste_brush)
+        self.root.bind("<Control-minus>", self.micsoreaza_brush)
 
-        # Normal ca acestea 2 nu merg pe Windows si trebuie cele de sus
+        # Normal ca acestea 2 de mai jos nu merg pe Windows si trebuie cele de sus
         # pt ca imbina +/- normale cu cele de pe keypad ......
         # O mizerie de OS !!!!!!!!!
 
@@ -62,15 +63,17 @@ class EditorFotoApp:
         self.root.bind("<Control-Key-KP_Add>", self.mareste_brush)
         self.root.bind("<Control-Key-KP_Subtract>", self.micsoreaza_brush)
 
-        self.root.bind("<Control-minus>", self.micsoreaza_brush)
+        self.root.bind("<Control-Up>", lambda e: self.ajusteaza_aberration(1))
+        self.root.bind("<Control-Down>", lambda e: self.ajusteaza_aberration(-1))
+
+        self.root.bind("<Control-Key-KP_Up>", lambda e: self.ajusteaza_blur(1))
+        self.root.bind("<Control-Key-KP_Down>", lambda e: self.ajusteaza_blur(-1))
+
+        self.root.bind("<Control-Key-KP_Right>", lambda e: self.ajusteaza_binarizare(1))
+        self.root.bind("<Control-Key-KP_Left>", lambda e: self.ajusteaza_binarizare(-1))
 
         self.root.bind("<Control-Left>", lambda e: self.roteste_imagine(90))
-        self.root.bind("<Control-Right>", lambda e: self.roteste_imagine(270))
-
-        self.root.bind("<Control-s>", lambda e: self.salveaza_imagine()) 
-        self.root.bind("<Control-o>", lambda e: self.deschide_imagine()) 
-
-        self.root.bind("<Control-r>", lambda e: self.reseteaza_imagine()) 
+        self.root.bind("<Control-Right>", lambda e: self.roteste_imagine(270)) 
 
         self.root.bind("<Control-w>", lambda e: self.deschide_wiki_scurtaturi()) 
 
@@ -86,8 +89,17 @@ class EditorFotoApp:
         self.root.bind("<Control-Key-6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
         self.root.bind("<Control-Key-7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
 
+        self.root.bind("<Control-Key-KP_1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
+        self.root.bind("<Control-Key-KP_2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
+        self.root.bind("<Control-Key-KP_3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
+        self.root.bind("<Control-Key-KP_4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
+        self.root.bind("<Control-Key-KP_5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
+        self.root.bind("<Control-Key-KP_6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
+        self.root.bind("<Control-Key-KP_7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
 
-        # Scurtaturi pentru Undo si Redo
+        self.root.bind("<Control-o>", lambda e: self.deschide_imagine()) 
+        self.root.bind("<Control-s>", lambda e: self.salveaza_imagine()) 
+        self.root.bind("<Control-r>", lambda e: self.reseteaza_imagine())
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
         self.root.bind("<Control-y>", lambda e: self.actiune_redo())
 
@@ -450,6 +462,24 @@ class EditorFotoApp:
         self.dim_brush.set(max(5, self.dim_brush.get() - 5))
         if event and hasattr(event, 'x'): self.actualizeaza_cerc_brush(event.x, event.y)
 
+    def ajusteaza_aberration(self, valoare_schimbare):
+        noua_valoare = self.slider_aberration.get() + valoare_schimbare
+        noua_valoare = max(0, min(30, noua_valoare))
+        self.slider_aberration.set(noua_valoare)
+        self.executa_recalculare_slider()
+
+    def ajusteaza_blur(self, valoare_schimbare):
+        noua_valoare = self.slider_blur.get() + valoare_schimbare
+        noua_valoare = max(0, min(10, noua_valoare))
+        self.slider_blur.set(noua_valoare)
+        self.executa_recalculare_slider()
+
+    def ajusteaza_binarizare(self, valoare_schimbare):
+        noua_valoare = self.slider_prag.get() + valoare_schimbare
+        noua_valoare = max(0, min(255, noua_valoare))
+        self.slider_prag.set(noua_valoare)
+        self.executa_recalculare_slider()
+
     def schimba_mod(self):
         self.sterge_selectia_vizuala()
         self.nume_filtru_brush = None
@@ -759,7 +789,7 @@ class EditorFotoApp:
     def deschide_wiki_scurtaturi(self):
         fereastra_wiki = tk.Toplevel(self.root)
         fereastra_wiki.title("Wiki Scurtături")
-        fereastra_wiki.geometry("450x350")
+        fereastra_wiki.geometry("450x500")
         
         fereastra_wiki.transient(self.root)
         
@@ -767,7 +797,7 @@ class EditorFotoApp:
         text_wiki.pack(expand=True, fill=tk.BOTH)
         
         continut = """
-        Comenzi:                                           
+        Comenzi Generale:\n                                          
         - Ctrl + O: Deschide o imagine                         
         - Ctrl + S: Salvează imaginea curentă                 
         - Ctrl + Z: Undo                                      
@@ -779,15 +809,21 @@ class EditorFotoApp:
         - Ctrl + N: Mod Selecție
         - Ctrl + B: Mod Pensulă
         - Ctrl + Left: Rotire stanga
-        - Ctrl + Right: Rotire dreapta\n
-        Filtre:
+        - Ctrl + Right: Rotire dreapta
+        - Ctrl + Up: Mărește slider aberration
+        - Ctrl + Down: Micșorează slider aberration\n\nUrmatoarele 4 functioneaza doar pe Linux!\n
+        - Ctrl + KeyPad Up: Mareste slider blur
+        - Ctrl + KeyPad Down: Micșorează slider blur
+        - Ctrl + KeyPad Left: Micșorează slider binarizare
+        - Ctrl + KeyPad Right: Mărește slider binarizare\n\nFiltre:\n
         - Ctrl + 1: Grayscale
         - Ctrl + 2: Negativare
         - Ctrl + 3: Binarizare
         - Ctrl + 4: Chromatic Aberration
         - Ctrl + 5: Blur
         - Ctrl + 6: Canny Edge Detection
-        - Ctrl + 7: Sare și Piper"""
+        - Ctrl + 7: Sare și Piper
+        """
 
         text_wiki.insert(tk.END, continut.strip())
         text_wiki.config(state=tk.DISABLED)
