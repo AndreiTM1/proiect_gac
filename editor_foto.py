@@ -10,9 +10,16 @@ class EditorFotoApp:
         self.root.title("Editor Foto - Neactivat 25 Zile Ramase")
         self.root.geometry("1600x900")
         
-        self.style = ttk.Style()
-        if "clam" in self.style.theme_names():
-            self.style.theme_use("clam")
+        # Starea temei
+        self.is_dark_mode = False
+        
+        # Seteaza fundalul ferestrei principale pentru Light Mode
+        self.bg_main = "#f0f0f0"
+        self.bg_panel = "#e0e0e0"
+        self.fg_text = "#000000"
+        self.root.configure(bg=self.bg_main)
+        
+        self.configurare_tema()
 
         # ARHITECTURA NOUA DE IMAGINI
         self.imagine_absolut_originala = None 
@@ -48,18 +55,124 @@ class EditorFotoApp:
         self.creare_interfata()
         self.setari_scurtaturi()
 
+    def configurare_tema(self):
+        self.style = ttk.Style()
+        if "clam" in self.style.theme_names():
+            self.style.theme_use("clam")
+
+        # Culori variabile in functie de tema activa
+        if self.is_dark_mode:
+            accent_blue = "#4B6EAF"
+            accent_blue_hover = "#5C7CB8"
+            accent_green = "#497A42"
+            accent_green_hover = "#558F4D"
+            accent_red = "#9E4545"
+            accent_red_hover = "#B34E4E"
+            btn_normal = "#4B4D4D"
+            btn_active = "#5A5C5C"
+            btn_disabled = "#323232"
+            fg_disabled = "#707070"
+            entry_bg = self.bg_main
+            entry_border = "#555"
+            fg_action_text = self.fg_text
+            select_color = self.bg_main
+            trough_color = self.bg_main
+        else:
+            accent_blue = "#0078D7"
+            accent_blue_hover = "#005A9E"
+            accent_green = "#107C10"
+            accent_green_hover = "#0B5A0B"
+            accent_red = "#D13438"
+            accent_red_hover = "#A4262C"
+            btn_normal = "#e1e1e1"
+            btn_active = "#d1d1d1"
+            btn_disabled = "#f0f0f0"
+            fg_disabled = "#a0a0a0"
+            entry_bg = "#FFFFFF"
+            entry_border = "#8A8886"
+            fg_action_text = "#FFFFFF"
+            select_color = "#FFFFFF"
+            trough_color = "#c8c8c8"
+
+        # Configurari globale pentru containere si text
+        self.style.configure(".", background=self.bg_panel, foreground=self.fg_text)
+        self.style.configure("TFrame", background=self.bg_panel)
+        self.style.configure("Main.TFrame", background=self.bg_main)
+        self.style.configure("TLabel", background=self.bg_panel, foreground=self.fg_text)
+        
+        self.style.configure("TRadiobutton", background=self.bg_panel, foreground=self.fg_text, selectcolor=select_color)
+        self.style.map("TRadiobutton", 
+            background=[("active", self.bg_panel)], 
+            foreground=[("active", self.fg_text)]
+        )
+        
+        self.style.configure("TCheckbutton", background=self.bg_panel, foreground=self.fg_text, selectcolor=select_color)
+        self.style.map("TCheckbutton", 
+            background=[("active", self.bg_panel)], 
+            foreground=[("active", self.fg_text)]
+        )
+
+        self.style.configure("Horizontal.TScale", background=self.bg_panel, troughcolor=trough_color)
+        self.style.configure("TSeparator", background=trough_color)
+        
+        self.style.configure("TEntry", fieldbackground=entry_bg, foreground=self.fg_text, bordercolor=entry_border, insertcolor=self.fg_text)
+
+        # Configurarea butonului standard
+        self.style.configure("TButton", background=btn_normal, foreground=self.fg_text, borderwidth=1, focuscolor=self.bg_main)
+        self.style.map("TButton", 
+            background=[("active", btn_active), ("disabled", btn_disabled)], 
+            foreground=[("active", self.fg_text), ("disabled", fg_disabled)]
+        )
+
+        # Butoane Actiuni principale
+        self.style.configure("Action.TButton", background=accent_blue, foreground=fg_action_text, font=("Helvetica", 9, "bold"))
+        self.style.map("Action.TButton", 
+            background=[("active", accent_blue_hover), ("disabled", btn_disabled)],
+            foreground=[("active", fg_action_text), ("disabled", fg_disabled)]
+        )
+
+        # Butoane Salvare/Succes
+        self.style.configure("Success.TButton", background=accent_green, foreground=fg_action_text, font=("Helvetica", 9, "bold"))
+        self.style.map("Success.TButton", 
+            background=[("active", accent_green_hover), ("disabled", btn_disabled)],
+            foreground=[("active", fg_action_text), ("disabled", fg_disabled)]
+        )
+
+        # Butoane Reset/Stergere
+        self.style.configure("Danger.TButton", background=accent_red, foreground=fg_action_text, font=("Helvetica", 9, "bold"))
+        self.style.map("Danger.TButton", 
+            background=[("active", accent_red_hover), ("disabled", btn_disabled)],
+            foreground=[("active", fg_action_text), ("disabled", fg_disabled)]
+        )
+
+    def schimba_tema(self):
+        self.is_dark_mode = not self.is_dark_mode
+        
+        if self.is_dark_mode:
+            self.bg_main = "#2b2b2b"
+            self.bg_panel = "#3c3f41"
+            self.fg_text = "#d3d3d3"
+            self.btn_tema.config(text="Light Mode")
+            self.canvas_imagine.configure(bg=self.bg_main)
+            self.lbl_status.configure(foreground="#a0a0a0")
+        else:
+            self.bg_main = "#f0f0f0"
+            self.bg_panel = "#e0e0e0"
+            self.fg_text = "#000000"
+            self.btn_tema.config(text="Dark Mode")
+            self.canvas_imagine.configure(bg="#2e2e2e") # In tema veche, canvas-ul cu imaginea era inchis la culoare
+            self.lbl_status.configure(foreground="#555555")
+
+        # Actualizam interfata in timp real
+        self.root.configure(bg=self.bg_main)
+        self.left_canvas.configure(bg=self.bg_panel)
+        self.configurare_tema()
+
     def setari_scurtaturi(self):
-        self.root.bind("<Control-equal>", self.mareste_brush) # poate pe unele tast e diferit
+        self.root.bind("<Control-equal>", self.mareste_brush) 
         self.root.bind("<Control-plus>", self.mareste_brush)
         self.root.bind("<Control-minus>", self.micsoreaza_brush)
 
-        # Normal ca acestea 2 de mai jos nu merg pe Windows si trebuie cele de sus
-        # pt ca imbina +/- normale cu cele de pe keypad ......
-        # O mizerie de OS !!!!!!!!!
-
-        # Am vrut sa fac +/- pentru slidere diferinte in functie de tasta normala
-        # sau cea de pe keypad, dar normal ca pe Windows dau acelasi semnal
-        # Un gunoi de OS !!!!!
         self.root.bind("<Control-Key-KP_Add>", self.mareste_brush)
         self.root.bind("<Control-Key-KP_Subtract>", self.micsoreaza_brush)
 
@@ -102,6 +215,7 @@ class EditorFotoApp:
         self.root.bind("<Control-r>", lambda e: self.reseteaza_imagine())
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
         self.root.bind("<Control-y>", lambda e: self.actiune_redo())
+        self.root.bind("<Control-h>", lambda e: self.afiseaza_histograma())
 
     def get_functii_filtre(self):
         return {
@@ -115,35 +229,41 @@ class EditorFotoApp:
         }
 
     def creare_interfata(self):
-        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame = ttk.Frame(self.root, padding="10", style="Main.TFrame")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         top_frame = ttk.Frame(main_frame, padding="5", relief=tk.GROOVE)
         top_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
 
-        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", underline = 10, command=self.deschide_imagine)
+        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", underline=10, style="Action.TButton", command=self.deschide_imagine)
         self.btn_deschide.pack(side=tk.LEFT, padx=5)
 
-        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", underline = 0, command=self.salveaza_imagine, state=tk.DISABLED)
+        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", underline=0, style="Success.TButton", command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
         
-        # --- BUTOANE NOI UNDO SI REDO ---
-        self.btn_undo = ttk.Button(top_frame, text="↩ Undo", command=self.actiune_undo, state=tk.DISABLED)
+        self.btn_undo = ttk.Button(top_frame, text="Undo", command=self.actiune_undo, state=tk.DISABLED)
         self.btn_undo.pack(side=tk.LEFT, padx=(20, 5))
 
-        self.btn_redo = ttk.Button(top_frame, text="↪ Redo", command=self.actiune_redo, state=tk.DISABLED)
+        self.btn_redo = ttk.Button(top_frame, text="Redo", command=self.actiune_redo, state=tk.DISABLED)
         self.btn_redo.pack(side=tk.LEFT, padx=5)
 
-        self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", underline = 0, command=self.reseteaza_imagine, state=tk.DISABLED)
+        self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", underline=0, style="Danger.TButton", command=self.reseteaza_imagine, state=tk.DISABLED)
         self.btn_reset.pack(side=tk.LEFT, padx=(20, 5))
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata", foreground="gray")
+        self.btn_histograma = ttk.Button(top_frame, text="Histograma", style="Action.TButton", command=self.afiseaza_histograma, state=tk.DISABLED)
+        self.btn_histograma.pack(side=tk.LEFT, padx=5)
+
+        # Aici este butonul de schimbare a temei
+        self.btn_tema = ttk.Button(top_frame, text="Dark Mode", command=self.schimba_tema)
+        self.btn_tema.pack(side=tk.RIGHT, padx=5)
+
+        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata", foreground="#a0a0a0")
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
-        left_holder = ttk.Frame(main_frame, width=240)
+        left_holder = ttk.Frame(main_frame, width=240, style="Main.TFrame")
         left_holder.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        self.left_canvas = tk.Canvas(left_holder, width=240, highlightthickness=0)
+        self.left_canvas = tk.Canvas(left_holder, width=240, highlightthickness=0, bg=self.bg_panel)
         self.left_scrollbar = ttk.Scrollbar(left_holder, orient=tk.VERTICAL, command=self.left_canvas.yview)
         self.left_canvas.configure(yscrollcommand=self.left_scrollbar.set)
         self.left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -166,9 +286,9 @@ class EditorFotoApp:
         ttk.Label(self.left_frame, text="Mod de Lucru", font=("Helvetica", 11, "bold")).pack(pady=(0, 5))
         self.mod_lucru = tk.StringVar(value="GLOBAL")
         
-        ttk.Radiobutton(self.left_frame, text="Global", underline = 0, variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Selection", underline = 8, variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
-        ttk.Radiobutton(self.left_frame, text="Brush",underline = 0, variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Global", underline=0, variable=self.mod_lucru, value="GLOBAL", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Selection", underline=8, variable=self.mod_lucru, value="SELECTIE", command=self.schimba_mod).pack(fill=tk.X)
+        ttk.Radiobutton(self.left_frame, text="Brush", underline=0, variable=self.mod_lucru, value="BRUSH", command=self.schimba_mod).pack(fill=tk.X)
         
         ttk.Separator(self.left_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
 
@@ -187,10 +307,10 @@ class EditorFotoApp:
         btn_rot_frame = ttk.Frame(self.frame_transformare)
         btn_rot_frame.pack(fill=tk.X, pady=2)
         
-        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire ↺", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
+        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire Stanga", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
         self.btn_rot_ccw.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
 
-        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire ↻", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
+        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire Dreapta", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
         self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
 
         self.var_resize = tk.BooleanVar(value=False)
@@ -199,7 +319,6 @@ class EditorFotoApp:
 
         self.frame_resize = ttk.Frame(self.frame_transformare)
         
-        # Row 1: Setari manuale W si H
         frame_wh = ttk.Frame(self.frame_resize)
         frame_wh.pack(fill=tk.X, pady=2)
         
@@ -213,10 +332,9 @@ class EditorFotoApp:
         self.entry_h = ttk.Entry(frame_wh, width=5)
         self.entry_h.pack(side=tk.LEFT, padx=2)
 
-        self.btn_aplica_resize = ttk.Button(frame_wh, text="Aplica", command=self.aplica_resize)
+        self.btn_aplica_resize = ttk.Button(frame_wh, text="Aplica", style="Action.TButton", command=self.aplica_resize)
         self.btn_aplica_resize.pack(side=tk.LEFT, padx=4)
 
-        # Row 2: Slide pentru Scale
         self.lbl_scale = ttk.Label(self.frame_resize, text="Scale: 1.00x", font=("Helvetica", 9))
         self.lbl_scale.pack(anchor=tk.W, pady=(5, 0))
         
@@ -264,7 +382,7 @@ class EditorFotoApp:
         display_frame = ttk.Frame(main_frame, relief=tk.SUNKEN)
         display_frame.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH)
 
-        self.canvas_imagine = tk.Canvas(display_frame, bg="#2e2e2e", cursor="cross")
+        self.canvas_imagine = tk.Canvas(display_frame, bg=self.bg_main, cursor="cross", highlightthickness=0)
         self.canvas_imagine.pack(expand=True, fill=tk.BOTH)
 
         self.canvas_imagine.bind("<ButtonPress-1>", self.on_mouse_press)
@@ -279,17 +397,11 @@ class EditorFotoApp:
         self.canvas_imagine.bind("<B3-Motion>", self.do_pan)
 
     def actualizeaza_layout_stanga(self):
-        # Fortam interfata sa isi aplice geometria imediat
         self.left_frame.update_idletasks()
-        
         req_height = self.left_frame.winfo_reqheight()
         canvas_height = self.left_canvas.winfo_height()
-        
-        # Mărim interiorul Canvasului dacă e nevoie de mai mult spațiu
         noua_inaltime = max(req_height, canvas_height)
         self.left_canvas.itemconfig(self.left_window_id, height=noua_inaltime)
-        
-        # Recalculăm scroll-ul
         self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
         self._update_left_scrollbar_visibility()
 
@@ -418,7 +530,6 @@ class EditorFotoApp:
         else:
             self.frame_resize.pack_forget()
             
-        # Apelam functia de actualizare layout dupa ce am afisat/ascuns panoul
         self.actualizeaza_layout_stanga()
 
     def aplica_resize(self):
@@ -533,6 +644,7 @@ class EditorFotoApp:
                 
                 self.btn_salveaza.config(state=tk.NORMAL)
                 self.btn_reset.config(state=tk.NORMAL)
+                self.btn_histograma.config(state=tk.NORMAL)
                 
                 self.btn_rot_ccw.config(state=tk.NORMAL)
                 self.btn_rot_cw.config(state=tk.NORMAL)
@@ -788,45 +900,166 @@ class EditorFotoApp:
 
     def deschide_wiki_scurtaturi(self):
         fereastra_wiki = tk.Toplevel(self.root)
-        fereastra_wiki.title("Wiki Scurtături")
+        fereastra_wiki.title("Wiki Scurtaturi")
         fereastra_wiki.geometry("450x500")
+        fereastra_wiki.configure(bg=self.bg_main)
         
         fereastra_wiki.transient(self.root)
         
-        text_wiki = tk.Text(fereastra_wiki, wrap=tk.WORD, font=("Helvetica", 10), padx=15, pady=15, bg="#f9f9f9")
+        text_wiki = tk.Text(fereastra_wiki, wrap=tk.WORD, font=("Helvetica", 10), padx=15, pady=15, bg=self.bg_panel, fg=self.fg_text, insertbackground=self.fg_text)
         text_wiki.pack(expand=True, fill=tk.BOTH)
         
         continut = """
-        Comenzi Generale:\n                                          
-        - Ctrl + O: Deschide o imagine                         
-        - Ctrl + S: Salvează imaginea curentă                 
-        - Ctrl + Z: Undo                                      
-        - Ctrl + Y: Redo                                       
-        - Ctrl + R: Reset imagine                              
-        - Ctrl + +: Mărește dimensiunea pensulei              
-        - Ctrl + -: Micșorează dimensiunea pensulei            
+        Comenzi Generale:
+        - Ctrl + O: Deschide o imagine
+        - Ctrl + S: Salveaza imaginea curenta
+        - Ctrl + Z: Undo
+        - Ctrl + Y: Redo
+        - Ctrl + R: Reset imagine
+        - Ctrl + +: Mareste dimensiunea pensulei
+        - Ctrl + -: Micsoreaza dimensiunea pensulei
         - Ctrl + G: Mod Global
-        - Ctrl + N: Mod Selecție
-        - Ctrl + B: Mod Pensulă
+        - Ctrl + N: Mod Selectie
+        - Ctrl + B: Mod Pensula
         - Ctrl + Left: Rotire stanga
         - Ctrl + Right: Rotire dreapta
-        - Ctrl + Up: Mărește slider aberration
-        - Ctrl + Down: Micșorează slider aberration\n\nUrmatoarele 4 functioneaza doar pe Linux!\n
+        - Ctrl + Up: Mareste slider aberration
+        - Ctrl + Down: Micsoreaza slider aberration
+        
+        Urmatoarele 4 functioneaza doar pe Linux:
         - Ctrl + KeyPad Up: Mareste slider blur
-        - Ctrl + KeyPad Down: Micșorează slider blur
-        - Ctrl + KeyPad Left: Micșorează slider binarizare
-        - Ctrl + KeyPad Right: Mărește slider binarizare\n\nFiltre:\n
+        - Ctrl + KeyPad Down: Micsoreaza slider blur
+        - Ctrl + KeyPad Left: Micsoreaza slider binarizare
+        - Ctrl + KeyPad Right: Mareste slider binarizare
+        
+        Filtre:
         - Ctrl + 1: Grayscale
         - Ctrl + 2: Negativare
         - Ctrl + 3: Binarizare
         - Ctrl + 4: Chromatic Aberration
         - Ctrl + 5: Blur
         - Ctrl + 6: Canny Edge Detection
-        - Ctrl + 7: Sare și Piper
+        - Ctrl + 7: Sare si Piper
         """
 
         text_wiki.insert(tk.END, continut.strip())
         text_wiki.config(state=tk.DISABLED)
+
+    def afiseaza_histograma(self):
+        if not self.imagine_curenta:
+            messagebox.showinfo("Histograma", "Deschide mai intai o imagine pentru a vedea histograma.")
+            return
+
+        img_rgb = self.imagine_curenta.convert("RGB")
+        img_gray = self.imagine_curenta.convert("L")
+        is_grayscale = self.imagine_curenta.mode == "L"
+
+        fereastra_hist = tk.Toplevel(self.root)
+        fereastra_hist.title("Histograma imagine")
+        fereastra_hist.geometry("760x560")
+        fereastra_hist.configure(bg=self.bg_main)
+        fereastra_hist.transient(self.root)
+
+        opt_frame = ttk.Frame(fereastra_hist, padding=10, style="Main.TFrame")
+        opt_frame.pack(fill=tk.X)
+
+        tk.Label(opt_frame, text="Afisare histograma:", font=("Helvetica", 10, "bold"), background=self.bg_main, foreground=self.fg_text).pack(side=tk.LEFT)
+        hist_type = tk.StringVar(value="Grayscale" if is_grayscale else "Color")
+
+        def update_hist():
+            if hist_type.get() == "Color":
+                img_hist = self.creeaza_histograma_color_image(img_rgb, is_grayscale)
+            else:
+                img_hist = self.creeaza_histograma_grayscale_image(img_gray)
+            tk_hist = ImageTk.PhotoImage(img_hist)
+            hist_label.config(image=tk_hist)
+            hist_label.image = tk_hist
+
+        tk.Radiobutton(opt_frame, text="Color", variable=hist_type, value="Color", command=update_hist, background=self.bg_main, foreground=self.fg_text, selectcolor=self.bg_panel).pack(side=tk.LEFT, padx=(15, 0))
+        tk.Radiobutton(opt_frame, text="Grayscale", variable=hist_type, value="Grayscale", command=update_hist, background=self.bg_main, foreground=self.fg_text, selectcolor=self.bg_panel).pack(side=tk.LEFT, padx=10)
+
+        hist_label = tk.Label(fereastra_hist, bg=self.bg_main)
+        hist_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=(0, 10))
+
+        update_hist()
+
+    def _hex_to_rgb(self, hex_color):
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    def creeaza_histograma_color_image(self, img_rgb, is_grayscale):
+        width = 720
+        height = 480
+        margin = 40
+        plot_height = 320
+
+        bg_rgb = self._hex_to_rgb(self.bg_panel)
+        fg_rgb = self._hex_to_rgb(self.fg_text)
+        
+        img = Image.new("RGB", (width, height), bg_rgb)
+        draw = ImageDraw.Draw(img)
+        draw.text((margin, 10), "Histograma RGB", fill=fg_rgb)
+
+        rgb_top = 30
+        rgb_bottom = rgb_top + plot_height
+        draw.rectangle((margin, rgb_top, width - margin, rgb_bottom), outline=(102, 102, 102))
+
+        if is_grayscale:
+            draw.text((margin + 10, rgb_top + 20), "Imaginea este grayscale. Histograma color nu este afisata.", fill=fg_rgb)
+            return img
+
+        hist = img_rgb.histogram()
+        hist_r = hist[0:256]
+        hist_g = hist[256:512]
+        hist_b = hist[512:768]
+        max_rgb = max(max(hist_r), max(hist_g), max(hist_b), 1)
+
+        for i in range(256):
+            x = margin + int(i * (width - margin * 2) / 255)
+            r_height = int((hist_r[i] / max_rgb) * (plot_height - 30))
+            g_height = int((hist_g[i] / max_rgb) * (plot_height - 30))
+            b_height = int((hist_b[i] / max_rgb) * (plot_height - 30))
+            draw.line((x, rgb_bottom, x, rgb_bottom - r_height), fill=(220, 60, 60), width=2)
+            draw.line((x, rgb_bottom, x, rgb_bottom - g_height), fill=(60, 200, 60), width=2)
+            draw.line((x, rgb_bottom, x, rgb_bottom - b_height), fill=(60, 100, 240), width=2)
+
+        legend_y = rgb_top + 10
+        draw.rectangle((width - margin - 170, legend_y, width - margin - 20, legend_y + 70), outline=(102, 102, 102), fill=bg_rgb)
+        draw.rectangle((width - margin - 160, legend_y + 8, width - margin - 140, legend_y + 24), fill=(220, 60, 60))
+        draw.text((width - margin - 130, legend_y + 6), "Rosu", fill=fg_rgb)
+        draw.rectangle((width - margin - 160, legend_y + 28, width - margin - 140, legend_y + 44), fill=(60, 200, 60))
+        draw.text((width - margin - 130, legend_y + 26), "Verde", fill=fg_rgb)
+        draw.rectangle((width - margin - 160, legend_y + 48, width - margin - 140, legend_y + 64), fill=(60, 100, 240))
+        draw.text((width - margin - 130, legend_y + 46), "Albastru", fill=fg_rgb)
+
+        return img
+
+    def creeaza_histograma_grayscale_image(self, img_gray):
+        width = 720
+        height = 480
+        margin = 40
+        plot_height = 320
+
+        bg_rgb = self._hex_to_rgb(self.bg_panel)
+        fg_rgb = self._hex_to_rgb(self.fg_text)
+
+        img = Image.new("RGB", (width, height), bg_rgb)
+        draw = ImageDraw.Draw(img)
+        draw.text((margin, 10), "Histograma grayscale", fill=fg_rgb)
+
+        gray_top = 30
+        gray_bottom = gray_top + plot_height
+        draw.rectangle((margin, gray_top, width - margin, gray_bottom), outline=(102, 102, 102))
+
+        hist_gray = img_gray.histogram()
+        max_gray = max(hist_gray) or 1
+
+        for i in range(256):
+            x = margin + int(i * (width - margin * 2) / 255)
+            height_gray = int((hist_gray[i] / max_gray) * (plot_height - 30))
+            draw.line((x, gray_bottom, x, gray_bottom - height_gray), fill=(160, 160, 160), width=2)
+
+        return img
 
     # --- FUNCTII FILTRE MATEMATICE INDIVIDUALE ---
 
