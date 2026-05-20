@@ -250,7 +250,7 @@ class EditorFotoApp:
         self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", underline=0, style="Danger.TButton", command=self.reseteaza_imagine, state=tk.DISABLED)
         self.btn_reset.pack(side=tk.LEFT, padx=(20, 5))
 
-        self.btn_histograma = ttk.Button(top_frame, text="Histograma", style="Action.TButton", command=self.afiseaza_histograma, state=tk.DISABLED)
+        self.btn_histograma = ttk.Button(top_frame, text="Histograma", underline=0, style="Action.TButton", command=self.afiseaza_histograma, state=tk.DISABLED)
         self.btn_histograma.pack(side=tk.LEFT, padx=5)
 
         # Aici este butonul de schimbare a temei
@@ -964,11 +964,11 @@ class EditorFotoApp:
         opt_frame.pack(fill=tk.X)
 
         tk.Label(opt_frame, text="Afisare histograma:", font=("Helvetica", 10, "bold"), background=self.bg_main, foreground=self.fg_text).pack(side=tk.LEFT)
-        hist_type = tk.StringVar(value="Grayscale" if is_grayscale else "Color")
+        hist_type = tk.StringVar(value="Color")
 
         def update_hist():
             if hist_type.get() == "Color":
-                img_hist = self.creeaza_histograma_color_image(img_rgb, is_grayscale)
+                img_hist = self.creeaza_histograma_color_image(img_rgb)
             else:
                 img_hist = self.creeaza_histograma_grayscale_image(img_gray)
             tk_hist = ImageTk.PhotoImage(img_hist)
@@ -987,7 +987,7 @@ class EditorFotoApp:
         hex_color = hex_color.lstrip('#')
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-    def creeaza_histograma_color_image(self, img_rgb, is_grayscale):
+    def creeaza_histograma_color_image(self, img_rgb):
         width = 720
         height = 480
         margin = 40
@@ -1003,10 +1003,6 @@ class EditorFotoApp:
         rgb_top = 30
         rgb_bottom = rgb_top + plot_height
         draw.rectangle((margin, rgb_top, width - margin, rgb_bottom), outline=(102, 102, 102))
-
-        if is_grayscale:
-            draw.text((margin + 10, rgb_top + 20), "Imaginea este grayscale. Histograma color nu este afisata.", fill=fg_rgb)
-            return img
 
         hist = img_rgb.histogram()
         hist_r = hist[0:256]
