@@ -68,6 +68,8 @@ class EditorFotoApp:
             accent_green_hover = "#558F4D"
             accent_red = "#9E4545"
             accent_red_hover = "#B34E4E"
+            accent_primary = "#7E57C2" 
+            accent_primary_hover = "#9575CD"
             btn_normal = "#4B4D4D"
             btn_active = "#5A5C5C"
             btn_disabled = "#323232"
@@ -84,6 +86,8 @@ class EditorFotoApp:
             accent_green_hover = "#0B5A0B"
             accent_red = "#D13438"
             accent_red_hover = "#A4262C"
+            accent_primary = "#673AB7" 
+            accent_primary_hover = "#512DA8"
             btn_normal = "#e1e1e1"
             btn_active = "#d1d1d1"
             btn_disabled = "#f0f0f0"
@@ -145,23 +149,30 @@ class EditorFotoApp:
             foreground=[("active", fg_action_text), ("disabled", fg_disabled)]
         )
 
+        # Butoane Secundare/Primary (Undo/Redo - Mov)
+        self.style.configure("Primary.TButton", background=accent_primary, foreground=fg_action_text, font=("Helvetica", 9, "bold"))
+        self.style.map("Primary.TButton", 
+            background=[("active", accent_primary_hover), ("disabled", btn_disabled)],
+            foreground=[("active", fg_action_text), ("disabled", fg_disabled)]
+        )
+
     def schimba_tema(self):
         self.is_dark_mode = not self.is_dark_mode
         
-        if self.is_dark_mode:
-            self.bg_main = "#2b2b2b"
-            self.bg_panel = "#3c3f41"
-            self.fg_text = "#d3d3d3"
-            self.btn_tema.config(text="Light Mode")
-            self.canvas_imagine.configure(bg=self.bg_main)
-            self.lbl_status.configure(foreground="#a0a0a0")
-        else:
+        if not self.is_dark_mode:
             self.bg_main = "#f0f0f0"
             self.bg_panel = "#e0e0e0"
             self.fg_text = "#000000"
             self.btn_tema.config(text="Dark Mode")
             self.canvas_imagine.configure(bg="#2e2e2e") # In tema veche, canvas-ul cu imaginea era inchis la culoare
             self.lbl_status.configure(foreground="#555555")
+        else:
+            self.bg_main = "#2b2b2b"
+            self.bg_panel = "#3c3f41"
+            self.fg_text = "#d3d3d3"
+            self.btn_tema.config(text="Light Mode")
+            self.canvas_imagine.configure(bg=self.bg_main)
+            self.lbl_status.configure(foreground="#a0a0a0")
 
         # Actualizam interfata in timp real
         self.root.configure(bg=self.bg_main)
@@ -241,10 +252,10 @@ class EditorFotoApp:
         self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", underline=0, style="Success.TButton", command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
         
-        self.btn_undo = ttk.Button(top_frame, text="Undo", command=self.actiune_undo, state=tk.DISABLED)
+        self.btn_undo = ttk.Button(top_frame, text="Undo", style="Primary.TButton", command=self.actiune_undo, state=tk.DISABLED)
         self.btn_undo.pack(side=tk.LEFT, padx=(20, 5))
 
-        self.btn_redo = ttk.Button(top_frame, text="Redo", command=self.actiune_redo, state=tk.DISABLED)
+        self.btn_redo = ttk.Button(top_frame, text="Redo", style="Primary.TButton", command=self.actiune_redo, state=tk.DISABLED)
         self.btn_redo.pack(side=tk.LEFT, padx=5)
 
         self.btn_reset = ttk.Button(top_frame, text="Resetare Imagine", underline=0, style="Danger.TButton", command=self.reseteaza_imagine, state=tk.DISABLED)
@@ -253,11 +264,14 @@ class EditorFotoApp:
         self.btn_histograma = ttk.Button(top_frame, text="Histograma", underline=0, style="Action.TButton", command=self.afiseaza_histograma, state=tk.DISABLED)
         self.btn_histograma.pack(side=tk.LEFT, padx=5)
 
-        # Aici este butonul de schimbare a temei
-        self.btn_tema = ttk.Button(top_frame, text="Dark Mode", command=self.schimba_tema)
+        # Corectura 1: Textul butonului adaptat dinamic la pornire
+        text_tema = "Light Mode" if self.is_dark_mode else "Dark Mode"
+        self.btn_tema = ttk.Button(top_frame, text=text_tema, command=self.schimba_tema)
         self.btn_tema.pack(side=tk.RIGHT, padx=5)
 
-        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata", foreground="#a0a0a0")
+        # Corectura 2: Culoarea statusului adaptată
+        culoare_status = "#a0a0a0" if self.is_dark_mode else "#555555"
+        self.lbl_status = ttk.Label(top_frame, text="Nicio imagine incarcata", foreground=culoare_status)
         self.lbl_status.pack(side=tk.RIGHT, padx=10)
 
         left_holder = ttk.Frame(main_frame, width=240, style="Main.TFrame")
@@ -307,10 +321,10 @@ class EditorFotoApp:
         btn_rot_frame = ttk.Frame(self.frame_transformare)
         btn_rot_frame.pack(fill=tk.X, pady=2)
         
-        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire Stanga", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
+        self.btn_rot_ccw = ttk.Button(btn_rot_frame, text="Rotire ⟲", state=tk.DISABLED, command=lambda: self.roteste_imagine(90))
         self.btn_rot_ccw.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
 
-        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire Dreapta", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
+        self.btn_rot_cw = ttk.Button(btn_rot_frame, text="Rotire ⟳", state=tk.DISABLED, command=lambda: self.roteste_imagine(270))
         self.btn_rot_cw.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(2, 0))
 
         self.var_resize = tk.BooleanVar(value=False)
@@ -382,7 +396,9 @@ class EditorFotoApp:
         display_frame = ttk.Frame(main_frame, relief=tk.SUNKEN)
         display_frame.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH)
 
-        self.canvas_imagine = tk.Canvas(display_frame, bg=self.bg_main, cursor="cross", highlightthickness=0)
+        # Corectura 3: Culoarea panoului de desenat stabilita corect la pornire
+        culoare_canvas = self.bg_main if self.is_dark_mode else "#2e2e2e"
+        self.canvas_imagine = tk.Canvas(display_frame, bg=culoare_canvas, cursor="cross", highlightthickness=0)
         self.canvas_imagine.pack(expand=True, fill=tk.BOTH)
 
         self.canvas_imagine.bind("<ButtonPress-1>", self.on_mouse_press)
@@ -1104,3 +1120,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = EditorFotoApp(root)
     root.mainloop()
+
