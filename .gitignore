@@ -1,2 +1,4 @@
 # Ignore the tracked expm.py file
 expm.py
+build/
+dist/
