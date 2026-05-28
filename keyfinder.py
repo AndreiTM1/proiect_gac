@@ -1,3 +1,5 @@
+#Am folosit acest script generat pentru a afla semnalele transmise de taste
+
 import tkinter as tk
 
 def arata_tasta(event):
