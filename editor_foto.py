@@ -199,34 +199,34 @@ class EditorFotoApp:
         self.root.bind("<Control-Left>", lambda e: self.roteste_imagine(90))
         self.root.bind("<Control-Right>", lambda e: self.roteste_imagine(270)) 
 
-        self.root.bind("<Control-w>", lambda e: self.deschide_wiki_scurtaturi()) 
+        self.root.bind("<Alt-w>", lambda e: self.deschide_wiki_scurtaturi()) 
 
-        self.root.bind("<Control-b>", lambda e: self.mod_lucru.set("BRUSH"))
-        self.root.bind("<Control-g>", lambda e: self.mod_lucru.set("GLOBAL"))
-        self.root.bind("<Control-n>", lambda e: self.mod_lucru.set("SELECTIE"))
+        self.root.bind("<Alt-b>", lambda e: self.mod_lucru.set("BRUSH"))
+        self.root.bind("<Alt-g>", lambda e: self.mod_lucru.set("GLOBAL"))
+        self.root.bind("<Alt-n>", lambda e: self.mod_lucru.set("SELECTIE"))
 
-        self.root.bind("<Control-Key-1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
-        self.root.bind("<Control-Key-2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
-        self.root.bind("<Control-Key-3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
-        self.root.bind("<Control-Key-4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
-        self.root.bind("<Control-Key-5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
-        self.root.bind("<Control-Key-6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
-        self.root.bind("<Control-Key-7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
+        self.root.bind("<Alt-Key-1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
+        self.root.bind("<Alt-Key-2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
+        self.root.bind("<Alt-Key-3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
+        self.root.bind("<Alt-Key-4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
+        self.root.bind("<Alt-Key-5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
+        self.root.bind("<Alt-Key-6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
+        self.root.bind("<Alt-Key-7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
 
-        self.root.bind("<Control-Key-KP_1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
-        self.root.bind("<Control-Key-KP_2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
-        self.root.bind("<Control-Key-KP_3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
-        self.root.bind("<Control-Key-KP_4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
-        self.root.bind("<Control-Key-KP_5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
-        self.root.bind("<Control-Key-KP_6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
-        self.root.bind("<Control-Key-KP_7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
+        self.root.bind("<Alt-Key-KP_1>", lambda e: self.proceseaza_actiune_filtru("Grayscale"))
+        self.root.bind("<Alt-Key-KP_2>", lambda e: self.proceseaza_actiune_filtru("Negativare"))
+        self.root.bind("<Alt-Key-KP_3>", lambda e: self.proceseaza_actiune_filtru("Binarizare"))
+        self.root.bind("<Alt-Key-KP_4>", lambda e: self.proceseaza_actiune_filtru("Chromatic Abr."))
+        self.root.bind("<Alt-Key-KP_5>", lambda e: self.proceseaza_actiune_filtru("Blur"))
+        self.root.bind("<Alt-Key-KP_6>", lambda e: self.proceseaza_actiune_filtru("Canny Edge"))
+        self.root.bind("<Alt-Key-KP_7>", lambda e: self.proceseaza_actiune_filtru("Sare si Piper"))
 
         self.root.bind("<Control-o>", lambda e: self.deschide_imagine()) 
         self.root.bind("<Control-s>", lambda e: self.salveaza_imagine()) 
-        self.root.bind("<Control-r>", lambda e: self.reseteaza_imagine())
+        self.root.bind("<Alt-r>", lambda e: self.reseteaza_imagine())
         self.root.bind("<Control-z>", lambda e: self.actiune_undo())
         self.root.bind("<Control-y>", lambda e: self.actiune_redo())
-        self.root.bind("<Control-h>", lambda e: self.afiseaza_histograma())
+        self.root.bind("<Alt-h>", lambda e: self.afiseaza_histograma())
 
     def get_functii_filtre(self):
         return {
@@ -246,10 +246,10 @@ class EditorFotoApp:
         top_frame = ttk.Frame(main_frame, padding="5", relief=tk.GROOVE)
         top_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 10))
 
-        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", underline=10, style="Action.TButton", command=self.deschide_imagine)
+        self.btn_deschide = ttk.Button(top_frame, text="Deschide Poza", style="Action.TButton", command=self.deschide_imagine)
         self.btn_deschide.pack(side=tk.LEFT, padx=5)
 
-        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", underline=0, style="Success.TButton", command=self.salveaza_imagine, state=tk.DISABLED)
+        self.btn_salveaza = ttk.Button(top_frame, text="Salveaza Poza", style="Success.TButton", command=self.salveaza_imagine, state=tk.DISABLED)
         self.btn_salveaza.pack(side=tk.LEFT, padx=5)
         
         self.btn_undo = ttk.Button(top_frame, text="Undo", style="Primary.TButton", command=self.actiune_undo, state=tk.DISABLED)
@@ -931,12 +931,12 @@ class EditorFotoApp:
         - Ctrl + S: Salveaza imaginea curenta
         - Ctrl + Z: Undo
         - Ctrl + Y: Redo
-        - Ctrl + R: Reset imagine
+        - Alt + R: Reset imagine
         - Ctrl + +: Mareste dimensiunea pensulei
         - Ctrl + -: Micsoreaza dimensiunea pensulei
-        - Ctrl + G: Mod Global
-        - Ctrl + N: Mod Selectie
-        - Ctrl + B: Mod Pensula
+        - Alt + G: Mod Global
+        - Alt + N: Mod Selectie
+        - Alt + B: Mod Pensula
         - Ctrl + Left: Rotire stanga
         - Ctrl + Right: Rotire dreapta
         - Ctrl + Up: Mareste slider aberration
@@ -949,13 +949,13 @@ class EditorFotoApp:
         - Ctrl + KeyPad Right: Mareste slider binarizare
         
         Filtre:
-        - Ctrl + 1: Grayscale
-        - Ctrl + 2: Negativare
-        - Ctrl + 3: Binarizare
-        - Ctrl + 4: Chromatic Aberration
-        - Ctrl + 5: Blur
-        - Ctrl + 6: Canny Edge Detection
-        - Ctrl + 7: Sare si Piper
+        - Alt + 1: Grayscale
+        - Alt + 2: Negativare
+        - Alt + 3: Binarizare
+        - Alt + 4: Chromatic Aberration
+        - Alt + 5: Blur
+        - Alt + 6: Canny Edge Detection
+        - Alt + 7: Sare si Piper
         """
 
         text_wiki.insert(tk.END, continut.strip())
